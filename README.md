@@ -1,7 +1,7 @@
 # WhatsApp Command Center
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
 
 An Electron application that enhances WhatsApp Web with specialized features for control rooms and production environments. This app allows you to display WhatsApp messages in full-screen with large fonts, making them visible from anywhere in the room, with special alert features for critical messages.
 
@@ -12,6 +12,25 @@ An Electron application that enhances WhatsApp Web with specialized features for
 - **Command Controls**: Easily manage communications in control room or production environments
 - **Easy to Use**: Simple interface with a "Present" button added to WhatsApp's chat header
 - **Cross-Platform**: Works on Windows, macOS, and Linux
+
+## 📥 Download
+
+Get the latest version of WhatsApp Command Center from our [releases page](https://github.com/crownemmanuel/whatsapp-command-center/releases).
+
+### Windows
+
+- [Installer (exe)](https://github.com/crownemmanuel/whatsapp-command-center/releases/download/v0.1.0/WhatsApp.Command.Center.Setup.0.1.0.exe)
+- [Portable (exe)](https://github.com/crownemmanuel/whatsapp-command-center/releases/download/v0.1.0/WhatsApp.Command.Center.0.1.0.exe)
+
+### macOS
+
+- [Disk Image (dmg)](https://github.com/crownemmanuel/whatsapp-command-center/releases/download/v0.1.0/WhatsApp.Command.Center-0.1.0-arm64.dmg)
+- [Zip Archive](https://github.com/crownemmanuel/whatsapp-command-center/releases/download/v0.1.0/WhatsApp.Command.Center-0.1.0-arm64-mac.zip)
+
+### Linux
+
+- [AppImage](https://github.com/crownemmanuel/whatsapp-command-center/releases/download/v0.1.0/WhatsApp.Command.Center-0.1.0-arm64.AppImage)
+- [Debian Package](https://github.com/crownemmanuel/whatsapp-command-center/releases/download/v0.1.0/whatsapp-control-center_0.1.0_arm64.deb)
 
 ## 📋 Requirements
 
