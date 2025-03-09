@@ -128,11 +128,17 @@ module.exports = {
 
 To build the application for distribution:
 
-```
+```bash
+# Build for all platforms
 npm run build
+
+# Build for a specific platform
+npm run build:win   # Windows only
+npm run build:mac   # macOS only
+npm run build:linux # Linux only
 ```
 
-This will create installable packages in the `dist` directory for Windows, macOS, and Linux.
+For detailed build instructions, troubleshooting common issues, and platform-specific guidance, please see our [Build Instructions](BUILD.md).
 
 ## 🤝 Contributing
 

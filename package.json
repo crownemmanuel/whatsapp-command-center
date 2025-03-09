@@ -10,6 +10,9 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "build": "electron-builder --mac --universal --win --x64 --arm64 --linux --x64 --arm64",
+    "build:win": "electron-builder --win --x64 --arm64",
+    "build:mac": "electron-builder --mac --universal",
+    "build:linux": "electron-builder --linux --x64 --arm64",
     "publish": "electron-builder --mac --universal --win --x64 --arm64 --linux --x64 --arm64 -p always"
   },
   "author": {
