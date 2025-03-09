@@ -9,8 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "build": "electron-builder --mac --universal --win --linux",
-    "publish": "electron-builder --mac --universal --win --linux -p always"
+    "build": "electron-builder --mac --universal --win --x64 --arm64 --linux --x64 --arm64",
+    "publish": "electron-builder --mac --universal --win --x64 --arm64 --linux --x64 --arm64 -p always"
   },
   "author": {
     "name": "Emmanuel Crown"
