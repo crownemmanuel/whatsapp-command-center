@@ -9,10 +9,90 @@ const {
 const path = require("path");
 const fs = require("fs");
 const config = require("./config");
+const { autoUpdater } = require("electron-updater");
 
 let mainWindow;
 let settingsWindow;
 let splashWindow;
+
+// Auto updater configuration
+autoUpdater.logger = require("electron-log");
+autoUpdater.logger.transports.file.level = "info";
+autoUpdater.autoDownload = false;
+
+// Handle auto updater events
+function setupAutoUpdater() {
+  // Check for updates when the app starts
+  autoUpdater.checkForUpdates();
+
+  // Set update check interval to once per hour
+  setInterval(() => {
+    autoUpdater.checkForUpdates();
+  }, 60 * 60 * 1000);
+
+  // When update available
+  autoUpdater.on("update-available", (info) => {
+    if (mainWindow) {
+      const dialogOpts = {
+        type: "info",
+        buttons: ["Update Now", "Later"],
+        title: "Application Update",
+        message: `Version ${info.version} is available.`,
+        detail: "A new version is available. Do you want to update now?",
+      };
+
+      dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+        if (returnValue.response === 0) {
+          // Start downloading the update
+          autoUpdater.downloadUpdate();
+          // Show download progress
+          mainWindow.webContents.send("update-downloading");
+        }
+      });
+    }
+  });
+
+  // When update not available
+  autoUpdater.on("update-not-available", () => {
+    console.log("No updates available");
+  });
+
+  // Handle download progress
+  autoUpdater.on("download-progress", (progressObj) => {
+    if (mainWindow) {
+      mainWindow.webContents.send("update-download-progress", progressObj);
+    }
+  });
+
+  // When update downloaded
+  autoUpdater.on("update-downloaded", () => {
+    if (mainWindow) {
+      const dialogOpts = {
+        type: "info",
+        buttons: ["Restart", "Later"],
+        title: "Application Update",
+        message: "Update Downloaded",
+        detail:
+          "A new version has been downloaded. Restart the application to apply the updates.",
+      };
+
+      dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+        if (returnValue.response === 0) {
+          // Quit and install update
+          autoUpdater.quitAndInstall();
+        }
+      });
+    }
+  });
+
+  // Handle auto updater errors
+  autoUpdater.on("error", (err) => {
+    console.error("Auto updater error:", err);
+    if (mainWindow) {
+      mainWindow.webContents.send("update-error", err.message);
+    }
+  });
+}
 
 // Create splash window
 function createSplashWindow() {
@@ -134,6 +214,9 @@ function createWindow() {
   // Create the application menu
   createApplicationMenu();
 
+  // Initialize auto updater
+  setupAutoUpdater();
+
   // Show window when ready
   mainWindow.once("ready-to-show", () => {
     mainWindow.show();
@@ -153,6 +236,11 @@ function createApplicationMenu() {
             submenu: [
               { role: "about" },
               { type: "separator" },
+              {
+                label: "Check for Updates",
+                click: () => autoUpdater.checkForUpdates(),
+              },
+              { type: "separator" },
               { role: "quit" },
             ],
           },
@@ -165,6 +253,10 @@ function createApplicationMenu() {
         {
           label: "Settings",
           click: () => openSettingsWindow(),
+        },
+        {
+          label: "Check for Updates",
+          click: () => autoUpdater.checkForUpdates(),
         },
         { type: "separator" },
         {
@@ -279,4 +371,17 @@ ipcMain.on("close-settings-window", () => {
   if (settingsWindow) {
     settingsWindow.close();
   }
+});
+
+// Handle IPC messages for updates
+ipcMain.on("check-for-updates", () => {
+  autoUpdater.checkForUpdates();
+});
+
+ipcMain.on("download-update", () => {
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.on("quit-and-install", () => {
+  autoUpdater.quitAndInstall();
 });

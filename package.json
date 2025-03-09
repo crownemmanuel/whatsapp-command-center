@@ -9,7 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "build": "electron-builder --mac --win --linux"
+    "build": "electron-builder --mac --win --linux",
+    "publish": "electron-builder --mac --win --linux -p always"
   },
   "author": {
     "name": "Emmanuel Crown"
@@ -20,24 +21,40 @@
     "electron-builder": "^24.6.3",
     "electron-icon-maker": "^0.0.5"
   },
+  "dependencies": {
+    "electron-log": "^5.3.2",
+    "electron-updater": "^6.1.7"
+  },
   "build": {
     "appId": "com.command.whatsapp",
     "productName": "WhatsApp Command Center",
     "icon": "icons/icons/png/1024x1024.png",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "crownemmanuel",
+        "repo": "whatsapp-command-center",
+        "releaseType": "release"
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "icons/icons/mac/icon.icns"
+      "icon": "icons/icons/mac/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
       ],
-      "icon": "icons/icons/win/icon.ico"
+      "icon": "icons/icons/win/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "linux": {
       "target": [
@@ -46,7 +63,28 @@
       ],
       "category": "Utility",
       "maintainer": "Emmanuel Crown",
-      "icon": "icons/icons/png"
+      "icon": "icons/icons/png",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": true
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     }
   }
 }

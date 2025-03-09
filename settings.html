@@ -48,37 +48,96 @@
       }
 
       input[type="number"] {
-        width: 100px;
+        width: 80px;
+      }
+
+      input[type="checkbox"] {
+        width: auto;
+        margin-right: 10px;
       }
 
       .buttons {
+        display: flex;
+        justify-content: flex-end;
         margin-top: 20px;
-        text-align: right;
+        gap: 10px;
       }
 
       button {
-        background-color: #00a884;
-        color: white;
-        border: none;
-        border-radius: 4px;
         padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
         cursor: pointer;
         font-size: 14px;
         transition: background-color 0.2s;
       }
 
-      button:hover {
-        background-color: #008f71;
-      }
-
       button.cancel {
-        background-color: #ddd;
+        background-color: #f5f5f5;
         color: #333;
-        margin-right: 10px;
       }
 
       button.cancel:hover {
-        background-color: #ccc;
+        background-color: #e0e0e0;
+      }
+
+      button#save-btn {
+        background-color: #00a884;
+        color: white;
+      }
+
+      button#save-btn:hover {
+        background-color: #008f6e;
+      }
+
+      /* New button styles */
+      .form-actions {
+        margin-top: 20px;
+      }
+
+      .main-buttons {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+        gap: 10px;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+      }
+
+      .btn.primary {
+        background-color: #00a884;
+        color: white;
+      }
+
+      .btn.primary:hover {
+        background-color: #008f6e;
+      }
+
+      .btn.secondary {
+        background-color: #f0f0f0;
+        color: #333;
+        width: 100%;
+        margin-bottom: 10px;
+        border: 1px solid #ddd;
+      }
+
+      .btn.secondary:hover {
+        background-color: #e0e0e0;
+      }
+
+      .section-header {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-top: 20px;
+        margin-bottom: 15px;
+        font-weight: 600;
       }
 
       .description {
@@ -125,9 +184,14 @@
           </div>
         </div>
 
-        <div class="buttons">
-          <button type="button" class="cancel" id="cancel-btn">Cancel</button>
-          <button type="button" id="save-btn">Save Changes</button>
+        <div class="form-actions">
+          <button type="button" id="check-updates-btn" class="btn secondary">
+            Check for Updates
+          </button>
+          <div class="main-buttons">
+            <button type="button" id="cancel-btn" class="btn">Cancel</button>
+            <button type="submit" class="btn primary">Save</button>
+          </div>
         </div>
       </form>
     </div>
@@ -150,30 +214,41 @@
         }
       }
 
+      // Handle check for updates button
+      document
+        .getElementById("check-updates-btn")
+        .addEventListener("click", () => {
+          window.settingsAPI.checkForUpdates();
+          alert("Checking for updates...");
+        });
+
       // Handle save button
-      document.getElementById("save-btn").addEventListener("click", () => {
-        const updatedConfig = {
-          PRESENTATION: {
-            MAX_MESSAGES: parseInt(
-              document.getElementById("max-messages").value,
-              10
-            ),
-            ALERT_EMOJI: document.getElementById("alert-emoji").value,
-            MESSAGE_FONT_SIZE: parseInt(
-              document.getElementById("message-font-size").value,
-              10
-            ),
-            POPUP_ALERT_MESSAGES:
-              document.getElementById("popup-alert").value === "true",
-          },
-        };
+      document
+        .getElementById("settings-form")
+        .addEventListener("submit", (e) => {
+          e.preventDefault();
+          const updatedConfig = {
+            PRESENTATION: {
+              MAX_MESSAGES: parseInt(
+                document.getElementById("max-messages").value,
+                10
+              ),
+              ALERT_EMOJI: document.getElementById("alert-emoji").value,
+              MESSAGE_FONT_SIZE: parseInt(
+                document.getElementById("message-font-size").value,
+                10
+              ),
+              POPUP_ALERT_MESSAGES:
+                document.getElementById("popup-alert").value === "true",
+            },
+          };
 
-        // Send to main process using the settingsAPI
-        window.settingsAPI.saveSettings(updatedConfig);
+          // Send to main process using the settingsAPI
+          window.settingsAPI.saveSettings(updatedConfig);
 
-        // Close the window
-        window.settingsAPI.closeWindow();
-      });
+          // Close the window
+          window.settingsAPI.closeWindow();
+        });
 
       // Handle cancel button
       document.getElementById("cancel-btn").addEventListener("click", () => {

@@ -10,4 +10,7 @@ contextBridge.exposeInMainWorld("settingsAPI", {
 
   // Close the window
   closeWindow: () => ipcRenderer.send("close-settings-window"),
+
+  // Check for updates
+  checkForUpdates: () => ipcRenderer.send("check-for-updates"),
 });

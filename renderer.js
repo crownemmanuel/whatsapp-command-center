@@ -17,6 +17,10 @@
   const FULL_SCREEN_CONTAINER_ID = "whatsapp-presentation-container";
   const ALERT_EMOJI = config.PRESENTATION.ALERT_EMOJI; // The emoji that triggers the alert mode
 
+  // Update notification elements
+  const UPDATE_NOTIFICATION_ID = "whatsapp-update-notification";
+  const UPDATE_PROGRESS_BAR_ID = "whatsapp-update-progress-bar";
+
   // Message selectors based on provided HTML structure
   const MESSAGE_SELECTORS = {
     // Main message container - Updated from DOM sample
@@ -93,9 +97,196 @@
     }
   }
 
+  // Setup update notification
+  function setupUpdateNotification() {
+    // Create update notification container if it doesn't exist
+    let updateNotification = document.getElementById(UPDATE_NOTIFICATION_ID);
+    if (!updateNotification) {
+      // Create the notification element
+      updateNotification = document.createElement("div");
+      updateNotification.id = UPDATE_NOTIFICATION_ID;
+      updateNotification.style.display = "none";
+      updateNotification.style.position = "fixed";
+      updateNotification.style.bottom = "20px";
+      updateNotification.style.right = "20px";
+      updateNotification.style.backgroundColor = "#2962FF";
+      updateNotification.style.color = "white";
+      updateNotification.style.padding = "15px";
+      updateNotification.style.borderRadius = "5px";
+      updateNotification.style.boxShadow = "0 2px 10px rgba(0, 0, 0, 0.2)";
+      updateNotification.style.zIndex = "10000";
+      updateNotification.style.maxWidth = "300px";
+      updateNotification.style.fontFamily =
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+      // Create the notification content
+      const notificationTitle = document.createElement("div");
+      notificationTitle.style.fontWeight = "bold";
+      notificationTitle.style.marginBottom = "10px";
+      notificationTitle.textContent = "Update Available";
+      updateNotification.appendChild(notificationTitle);
+
+      const notificationMessage = document.createElement("div");
+      notificationMessage.id = "update-message";
+      notificationMessage.style.marginBottom = "15px";
+      notificationMessage.textContent = "A new version is available.";
+      updateNotification.appendChild(notificationMessage);
+
+      // Create progress bar for download progress
+      const progressContainer = document.createElement("div");
+      progressContainer.style.width = "100%";
+      progressContainer.style.height = "8px";
+      progressContainer.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
+      progressContainer.style.borderRadius = "4px";
+      progressContainer.style.overflow = "hidden";
+      progressContainer.style.marginBottom = "15px";
+      progressContainer.style.display = "none";
+      updateNotification.appendChild(progressContainer);
+
+      const progressBar = document.createElement("div");
+      progressBar.id = UPDATE_PROGRESS_BAR_ID;
+      progressBar.style.width = "0%";
+      progressBar.style.height = "100%";
+      progressBar.style.backgroundColor = "white";
+      progressBar.style.transition = "width 0.3s";
+      progressContainer.appendChild(progressBar);
+
+      // Create buttons container
+      const buttonsContainer = document.createElement("div");
+      buttonsContainer.style.display = "flex";
+      buttonsContainer.style.gap = "10px";
+      updateNotification.appendChild(buttonsContainer);
+
+      // Download button
+      const downloadButton = document.createElement("button");
+      downloadButton.textContent = "Download Update";
+      downloadButton.style.backgroundColor = "white";
+      downloadButton.style.color = "#2962FF";
+      downloadButton.style.border = "none";
+      downloadButton.style.padding = "8px 12px";
+      downloadButton.style.borderRadius = "4px";
+      downloadButton.style.cursor = "pointer";
+      downloadButton.style.fontWeight = "bold";
+      downloadButton.style.flex = "1";
+      downloadButton.onclick = () => {
+        window.electronAPI.downloadUpdate();
+
+        // Show progress container
+        progressContainer.style.display = "block";
+
+        // Update buttons
+        downloadButton.style.display = "none";
+        laterButton.style.display = "none";
+
+        // Update message
+        notificationMessage.textContent = "Downloading update...";
+      };
+      buttonsContainer.appendChild(downloadButton);
+
+      // Later button
+      const laterButton = document.createElement("button");
+      laterButton.textContent = "Later";
+      laterButton.style.backgroundColor = "transparent";
+      laterButton.style.color = "white";
+      laterButton.style.border = "1px solid white";
+      laterButton.style.padding = "8px 12px";
+      laterButton.style.borderRadius = "4px";
+      laterButton.style.cursor = "pointer";
+      laterButton.style.flex = "1";
+      laterButton.onclick = () => {
+        updateNotification.style.display = "none";
+      };
+      buttonsContainer.appendChild(laterButton);
+
+      // Restart button (for after download complete)
+      const restartButton = document.createElement("button");
+      restartButton.textContent = "Restart Now";
+      restartButton.style.backgroundColor = "white";
+      restartButton.style.color = "#2962FF";
+      restartButton.style.border = "none";
+      restartButton.style.padding = "8px 12px";
+      restartButton.style.borderRadius = "4px";
+      restartButton.style.cursor = "pointer";
+      restartButton.style.fontWeight = "bold";
+      restartButton.style.flex = "1";
+      restartButton.style.display = "none";
+      restartButton.onclick = () => {
+        window.electronAPI.quitAndInstall();
+      };
+      buttonsContainer.appendChild(restartButton);
+
+      // Close button
+      const closeButton = document.createElement("button");
+      closeButton.textContent = "×";
+      closeButton.style.position = "absolute";
+      closeButton.style.top = "5px";
+      closeButton.style.right = "5px";
+      closeButton.style.backgroundColor = "transparent";
+      closeButton.style.color = "white";
+      closeButton.style.border = "none";
+      closeButton.style.fontSize = "18px";
+      closeButton.style.cursor = "pointer";
+      closeButton.style.width = "24px";
+      closeButton.style.height = "24px";
+      closeButton.style.display = "flex";
+      closeButton.style.alignItems = "center";
+      closeButton.style.justifyContent = "center";
+      closeButton.onclick = () => {
+        updateNotification.style.display = "none";
+      };
+      updateNotification.appendChild(closeButton);
+
+      // Add to document
+      document.body.appendChild(updateNotification);
+
+      // Setup event listeners for update events
+      if (window.electronAPI) {
+        // Update downloading started
+        window.electronAPI.onUpdateDownloading(() => {
+          updateNotification.style.display = "block";
+          progressContainer.style.display = "block";
+          downloadButton.style.display = "none";
+          laterButton.style.display = "none";
+          notificationMessage.textContent = "Downloading update...";
+        });
+
+        // Update download progress
+        window.electronAPI.onUpdateProgress((progress) => {
+          const progressPercent = Math.round(progress.percent) || 0;
+          progressBar.style.width = `${progressPercent}%`;
+          notificationMessage.textContent = `Downloading: ${progressPercent}%`;
+        });
+
+        // Update download complete
+        window.electronAPI.onUpdateDownloaded(() => {
+          notificationTitle.textContent = "Update Ready";
+          notificationMessage.textContent =
+            "Update has been downloaded. Restart to apply.";
+          progressContainer.style.display = "none";
+          restartButton.style.display = "block";
+          laterButton.style.display = "block";
+          laterButton.textContent = "Later";
+        });
+
+        // Update error
+        window.electronAPI.onUpdateError((error) => {
+          notificationTitle.textContent = "Update Error";
+          notificationMessage.textContent = `Error: ${error}`;
+          progressContainer.style.display = "none";
+          downloadButton.style.display = "none";
+          laterButton.textContent = "Close";
+          laterButton.style.display = "block";
+        });
+      }
+    }
+  }
+
   // Initialize when the DOM is fully loaded
   function initialize() {
     console.log("WhatsApp Presentation Mode: Initializing...");
+
+    // Setup update notification
+    setupUpdateNotification();
 
     // Create mutation observer to detect when we enter a chat
     const observer = new MutationObserver(detectChatView);
