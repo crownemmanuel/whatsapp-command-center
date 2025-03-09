@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+use github cli gh to push releases to github
+each release should have all the binaries for all the platforms linux mac and windows
+when ever building new features always start a new branch on git
+

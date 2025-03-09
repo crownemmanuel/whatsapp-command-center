@@ -184,6 +184,36 @@
           </div>
         </div>
 
+        <div class="section-header">Security Settings</div>
+
+        <div class="form-group">
+          <input
+            type="checkbox"
+            id="enable-pin"
+            style="width: auto; margin-right: 10px"
+          />
+          <label for="enable-pin" style="display: inline"
+            >Enable PIN Protection</label
+          >
+          <div class="description">
+            Require a PIN to access the app and exit full-screen mode
+          </div>
+        </div>
+
+        <div class="form-group" id="pin-input-container" style="display: none">
+          <label for="pin-code">PIN Code</label>
+          <input
+            type="password"
+            id="pin-code"
+            maxlength="6"
+            pattern="[0-9]*"
+            inputmode="numeric"
+          />
+          <div class="description">
+            Enter a numeric PIN code (up to 6 digits)
+          </div>
+        </div>
+
         <div class="form-actions">
           <button type="button" id="check-updates-btn" class="btn secondary">
             Check for Updates
@@ -211,8 +241,35 @@
             config.PRESENTATION.MESSAGE_FONT_SIZE;
           document.getElementById("popup-alert").value =
             config.PRESENTATION.POPUP_ALERT_MESSAGES.toString();
+
+          // Initialize security settings
+          if (config.SECURITY) {
+            document.getElementById("enable-pin").checked =
+              config.SECURITY.PIN_ENABLED;
+            document.getElementById("pin-code").value =
+              config.SECURITY.PIN_CODE;
+
+            // Show/hide PIN input based on checkbox state
+            document.getElementById("pin-input-container").style.display =
+              config.SECURITY.PIN_ENABLED ? "block" : "none";
+          }
         }
       }
+
+      // Toggle PIN input visibility based on checkbox state
+      document
+        .getElementById("enable-pin")
+        .addEventListener("change", function () {
+          document.getElementById("pin-input-container").style.display = this
+            .checked
+            ? "block"
+            : "none";
+
+          // Clear PIN if disabled
+          if (!this.checked) {
+            document.getElementById("pin-code").value = "";
+          }
+        });
 
       // Handle check for updates button
       document
@@ -240,6 +297,10 @@
               ),
               POPUP_ALERT_MESSAGES:
                 document.getElementById("popup-alert").value === "true",
+            },
+            SECURITY: {
+              PIN_ENABLED: document.getElementById("enable-pin").checked,
+              PIN_CODE: document.getElementById("pin-code").value,
             },
           };
 

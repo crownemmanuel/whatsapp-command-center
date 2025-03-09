@@ -21,4 +21,13 @@ module.exports = {
     // Whether to pop up (highlight) messages with the alert emoji
     POPUP_ALERT_MESSAGES: true,
   },
+
+  // Security configuration
+  SECURITY: {
+    // Whether PIN protection is enabled
+    PIN_ENABLED: false,
+
+    // The PIN code for protection (stored as string)
+    PIN_CODE: "",
+  },
 };

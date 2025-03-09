@@ -10,6 +10,7 @@ const path = require("path");
 const fs = require("fs");
 const config = require("./config");
 const { autoUpdater } = require("electron-updater");
+const Store = require("electron-store");
 
 // Set up enhanced logging
 const log = require("electron-log");
@@ -21,9 +22,48 @@ log.catchErrors({
   },
 });
 
+// Initialize settings store
+const store = new Store({
+  name: "settings",
+  defaults: {
+    PRESENTATION: config.PRESENTATION,
+    SECURITY: config.SECURITY,
+  },
+});
+
+// Load saved settings
+function loadSavedSettings() {
+  try {
+    // Load from store and merge with default config
+    const savedSettings = store.store;
+
+    if (savedSettings.PRESENTATION) {
+      config.PRESENTATION = {
+        ...config.PRESENTATION,
+        ...savedSettings.PRESENTATION,
+      };
+    }
+
+    if (savedSettings.SECURITY) {
+      config.SECURITY = {
+        ...config.SECURITY,
+        ...savedSettings.SECURITY,
+      };
+    }
+
+    log.info("Settings loaded from store");
+  } catch (error) {
+    log.error("Error loading settings:", error);
+  }
+}
+
+// Load settings on startup
+loadSavedSettings();
+
 let mainWindow;
 let settingsWindow;
 let splashWindow;
+let pinValidationWindow;
 
 // Auto updater configuration
 autoUpdater.logger = require("electron-log");
@@ -204,7 +244,7 @@ function createSplashWindow() {
     setTimeout(() => {
       log.info("Splash timeout - creating main window");
       createWindow();
-      if (splashWindow) {
+      if (splashWindow && !splashWindow.isDestroyed()) {
         splashWindow.close();
         // Remove temp file
         try {
@@ -333,7 +373,30 @@ function createWindow() {
     // Show window when ready
     mainWindow.once("ready-to-show", () => {
       log.info("Main window ready to show");
-      mainWindow.show();
+
+      // Only try to close splash window if it still exists
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+        splashWindow = null;
+      }
+
+      // Validate PIN if enabled before showing the main window
+      if (config.SECURITY && config.SECURITY.PIN_ENABLED) {
+        createPinValidationWindow(
+          // Success callback - show the main window
+          () => {
+            mainWindow.show();
+            mainWindow.focus();
+          },
+          // Cancel callback - quit the app if PIN validation is canceled
+          () => {
+            app.quit();
+          }
+        );
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
     });
 
     // Log errors from the renderer process
@@ -457,7 +520,7 @@ function showAboutDialog() {
     title: "About WhatsApp Control Center",
     message: "WhatsApp Control Center",
     detail:
-      "Version 1.0.0\nEnhanced WhatsApp Web interface for control rooms and productions",
+      "Version 0.1.4\nEnhanced WhatsApp Web interface with PIN protection for control rooms and productions",
     buttons: ["OK"],
   });
 }
@@ -465,6 +528,7 @@ function showAboutDialog() {
 app.whenReady().then(() => {
   log.info("App ready, initializing application");
   try {
+    // Create splash window
     createSplashWindow(); // Show splash screen instead of directly creating main window
 
     app.on("activate", function () {
@@ -472,11 +536,7 @@ app.whenReady().then(() => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
   } catch (error) {
-    log.error("Error in app initialization:", error);
-    dialog.showErrorBox(
-      "Application Error",
-      `Failed to initialize application: ${error.message}\n\nCheck the logs for more details.`
-    );
+    log.error("Error during app initialization:", error);
   }
 });
 
@@ -485,10 +545,22 @@ app.on("window-all-closed", function () {
 });
 
 // Handle IPC messages from renderer
-ipcMain.on("toggle-fullscreen", () => {
+ipcMain.on("toggle-full-screen", () => {
   if (mainWindow) {
     const isFullScreen = mainWindow.isFullScreen();
-    mainWindow.setFullScreen(!isFullScreen);
+
+    // If we're exiting full-screen mode and PIN is enabled, validate PIN first
+    if (isFullScreen && config.SECURITY && config.SECURITY.PIN_ENABLED) {
+      createPinValidationWindow(
+        // On success, exit full-screen
+        () => {
+          mainWindow.setFullScreen(false);
+        }
+      );
+    } else {
+      // Otherwise, toggle full-screen directly
+      mainWindow.setFullScreen(!isFullScreen);
+    }
   }
 });
 
@@ -497,7 +569,21 @@ ipcMain.on("update-settings", (event, updatedConfig) => {
   // Update the config
   Object.assign(config, updatedConfig);
 
-  // Save to disk (optional implementation)
+  // Save to disk using electron-store
+  try {
+    // Save each section separately to handle partial updates
+    if (updatedConfig.PRESENTATION) {
+      store.set("PRESENTATION", updatedConfig.PRESENTATION);
+    }
+
+    if (updatedConfig.SECURITY) {
+      store.set("SECURITY", updatedConfig.SECURITY);
+    }
+
+    log.info("Settings saved to store");
+  } catch (error) {
+    log.error("Error saving settings:", error);
+  }
 
   // Notify main window of config update
   if (mainWindow) {
@@ -545,4 +631,133 @@ process.on("uncaughtException", (error) => {
     "Application Error",
     `An unexpected error occurred: ${error.message}\n\nCheck the logs for more details.`
   );
+});
+
+// Function to create a PIN validation window
+function createPinValidationWindow(onSuccess, onCancel = null) {
+  // If PIN is not enabled, call success callback immediately
+  if (!config.SECURITY || !config.SECURITY.PIN_ENABLED) {
+    if (onSuccess) onSuccess();
+    return;
+  }
+
+  // If PIN window already exists, just focus it
+  if (pinValidationWindow) {
+    pinValidationWindow.focus();
+    return;
+  }
+
+  // Get the main window dimensions
+  const mainWindowSize = mainWindow ? mainWindow.getSize() : [1200, 800];
+  const mainWidth = mainWindowSize[0];
+  const mainHeight = mainWindowSize[1];
+
+  // Create PIN validation window
+  pinValidationWindow = new BrowserWindow({
+    width: mainWidth,
+    height: mainHeight,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    frame: false, // Remove frame for better privacy
+    transparent: false, // Ensure window is not transparent
+    backgroundColor: "#000000", // Set background to black
+    title: "PIN Verification",
+    parent: mainWindow,
+    modal: true,
+    fullscreenable: false,
+    skipTaskbar: true, // Don't show in taskbar for privacy
+    icon: path.join(__dirname, "icons", "icon.png"),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, "pin-preload.js"),
+    },
+  });
+
+  // Hide the menu bar
+  pinValidationWindow.setMenuBarVisibility(false);
+
+  // Add resize listener to main window to adjust PIN window size
+  const resizeHandler = () => {
+    if (
+      pinValidationWindow &&
+      !pinValidationWindow.isDestroyed() &&
+      mainWindow
+    ) {
+      const [newWidth, newHeight] = mainWindow.getSize();
+      pinValidationWindow.setSize(newWidth, newHeight);
+
+      // Also update position to ensure it stays centered over main window
+      const [x, y] = mainWindow.getPosition();
+      pinValidationWindow.setPosition(x, y);
+    }
+  };
+
+  if (mainWindow) {
+    mainWindow.on("resize", resizeHandler);
+    mainWindow.on("move", resizeHandler);
+  }
+
+  // Load PIN validation HTML
+  pinValidationWindow.loadFile("pin-validation.html");
+
+  // Pass PIN to window
+  pinValidationWindow.webContents.on("did-finish-load", () => {
+    pinValidationWindow.webContents.executeJavaScript(`
+      window.pinConfig = ${JSON.stringify({
+        PIN_CODE: config.SECURITY.PIN_CODE,
+      })};
+      if (typeof initializePinValidation === 'function') {
+        initializePinValidation();
+      }
+    `);
+  });
+
+  // Store callbacks for use with IPC events
+  pinValidationWindow.successCallback = onSuccess;
+  pinValidationWindow.cancelCallback = onCancel;
+
+  // Handle window closed
+  pinValidationWindow.on("closed", () => {
+    // Remove resize listeners when PIN window is closed
+    if (mainWindow) {
+      mainWindow.removeListener("resize", resizeHandler);
+      mainWindow.removeListener("move", resizeHandler);
+    }
+    pinValidationWindow = null;
+  });
+}
+
+// Add IPC handlers for PIN validation
+ipcMain.on("validate-pin", (event, enteredPin) => {
+  if (pinValidationWindow && enteredPin === config.SECURITY.PIN_CODE) {
+    // PIN is correct
+    const successCallback = pinValidationWindow.successCallback;
+    pinValidationWindow.close();
+    pinValidationWindow = null;
+
+    if (successCallback) {
+      successCallback();
+    }
+  } else {
+    // PIN is incorrect
+    event.reply("pin-validation-result", {
+      success: false,
+      message: "Incorrect PIN. Please try again.",
+    });
+  }
+});
+
+ipcMain.on("cancel-pin-validation", () => {
+  if (pinValidationWindow) {
+    const cancelCallback = pinValidationWindow.cancelCallback;
+    pinValidationWindow.close();
+    pinValidationWindow = null;
+
+    if (cancelCallback) {
+      cancelCallback();
+    }
+  }
 });

@@ -603,6 +603,21 @@
 
   // Exit presentation mode
   function exitPresentationMode() {
+    // Check if PIN protection is enabled
+    if (config.SECURITY && config.SECURITY.PIN_ENABLED) {
+      // Create PIN verification overlay
+      createPinVerificationOverlay(() => {
+        // On successful PIN verification
+        actuallyExitPresentationMode();
+      });
+    } else {
+      // If PIN is not enabled, exit directly
+      actuallyExitPresentationMode();
+    }
+  }
+
+  // Actual exit presentation mode implementation (after PIN verification if needed)
+  function actuallyExitPresentationMode() {
     const container = document.getElementById(FULL_SCREEN_CONTAINER_ID);
     if (container) {
       container.remove();
@@ -625,6 +640,125 @@
 
     isInPresentationMode = false;
     currentChat = null;
+  }
+
+  // Create PIN verification overlay with full black background for privacy
+  function createPinVerificationOverlay(onSuccess) {
+    // Create overlay container
+    const overlay = document.createElement("div");
+    overlay.id = "pin-verification-overlay";
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #000;
+      z-index: 20000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    `;
+
+    // Create PIN form
+    const pinForm = document.createElement("div");
+    pinForm.style.cssText = `
+      background-color: #1f2c34;
+      padding: 25px;
+      border-radius: 8px;
+      width: 300px;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    `;
+
+    pinForm.innerHTML = `
+      <h2 style="color: #00a884; margin-bottom: 20px; margin-top: 0;">Enter PIN</h2>
+      <div style="margin-bottom: 15px;">
+        <input type="password" id="pin-input-field" maxlength="6" pattern="[0-9]*" 
+          inputmode="numeric" placeholder="******" style="width: 100%; padding: 10px; 
+          border: 1px solid #ddd; border-radius: 4px; font-size: 16px; 
+          text-align: center; letter-spacing: 4px; background-color: #2a3942; color: white;">
+      </div>
+      <div id="pin-error-message" style="color: #e53935; font-size: 14px; 
+        margin-top: 10px; min-height: 20px;"></div>
+      <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+        <button id="pin-cancel-btn" style="padding: 8px 16px; border-radius: 4px; 
+          border: none; cursor: pointer; font-size: 14px; background-color: #f5f5f5; 
+          color: #333; min-width: 100px;">Cancel</button>
+        <button id="pin-submit-btn" style="padding: 8px 16px; border-radius: 4px; 
+          border: none; cursor: pointer; font-size: 14px; background-color: #00a884; 
+          color: white; min-width: 100px;">Submit</button>
+      </div>
+    `;
+
+    overlay.appendChild(pinForm);
+    document.body.appendChild(overlay);
+
+    // Set focus on PIN input
+    setTimeout(() => {
+      const pinInput = document.getElementById("pin-input-field");
+      if (pinInput) {
+        pinInput.focus();
+      }
+    }, 100);
+
+    // Handle form submission
+    document.getElementById("pin-submit-btn").addEventListener("click", () => {
+      verifyPin(onSuccess);
+    });
+
+    // Handle cancel button
+    document.getElementById("pin-cancel-btn").addEventListener("click", () => {
+      removeOverlay();
+    });
+
+    // Handle enter key
+    document
+      .getElementById("pin-input-field")
+      .addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          verifyPin(onSuccess);
+        }
+      });
+  }
+
+  // Verify entered PIN against stored PIN
+  function verifyPin(onSuccess) {
+    const pinInput = document.getElementById("pin-input-field");
+    const enteredPin = pinInput.value.trim();
+    const correctPin = config.SECURITY.PIN_CODE;
+
+    if (enteredPin === correctPin) {
+      // PIN is correct
+      removeOverlay();
+      if (onSuccess) {
+        onSuccess();
+      }
+    } else {
+      // PIN is incorrect
+      const errorElement = document.getElementById("pin-error-message");
+      errorElement.textContent = "Incorrect PIN. Please try again.";
+
+      // Clear error after 3 seconds
+      setTimeout(() => {
+        if (errorElement) {
+          errorElement.textContent = "";
+        }
+      }, 3000);
+
+      // Clear input and focus
+      pinInput.value = "";
+      pinInput.focus();
+    }
+  }
+
+  // Remove PIN verification overlay
+  function removeOverlay() {
+    const overlay = document.getElementById("pin-verification-overlay");
+    if (overlay) {
+      overlay.remove();
+    }
   }
 
   // Start monitoring for new messages

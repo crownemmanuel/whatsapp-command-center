@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Expose specific Electron APIs to the renderer process
 contextBridge.exposeInMainWorld("electronAPI", {
-  toggleFullscreen: () => ipcRenderer.send("toggle-fullscreen"),
+  toggleFullscreen: () => ipcRenderer.send("toggle-full-screen"),
 
   // Log functions for inspection mode
   logElement: (data) => {
