@@ -1,0 +1,84 @@
+/* WhatsApp Presentation Mode Styles */
+
+/* Ensure the full-screen container is actually full-screen */
+#whatsapp-presentation-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 10000 !important;
+}
+
+/* Base styles for presentation messages - font size controlled by dynamic styling */
+#presentation-messages > div {
+  line-height: 1.4 !important;
+  /* Font size now controlled by dynamic styling based on config.js */
+}
+
+/* Flashing animation */
+@keyframes flash-red {
+  0% {
+    background-color: #1f2c34;
+  }
+  50% {
+    background-color: #d33;
+  }
+  100% {
+    background-color: #1f2c34;
+  }
+}
+
+.flashing {
+  animation: flash-red 1s infinite;
+}
+
+/* Ensure our button doesn't get WhatsApp's styles */
+#whatsapp-presentation-mode-button {
+  margin-right: 10px !important;
+  font-size: 14px !important;
+}
+
+/* Make sure presentation messages are super visible */
+.presentation-message {
+  border-radius: 10px !important;
+  padding: 20px !important;
+  margin-bottom: 20px !important;
+  word-wrap: break-word !important;
+  max-width: 80% !important;
+}
+
+/* Ensure header is always visible */
+#whatsapp-presentation-container > div:first-child {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1 !important;
+}
+
+/* Inspection mode styles */
+#inspection-mode-indicator {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  background-color: #f44336 !important;
+  color: white !important;
+  padding: 5px 10px !important;
+  z-index: 10000 !important;
+  font-weight: bold !important;
+  font-size: 14px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Inspection mode button */
+#whatsapp-inspection-mode-button {
+  margin-right: 10px !important;
+  font-size: 14px !important;
+}
+
+/* Highlighted element in inspection mode */
+.inspection-highlighted {
+  outline: 2px solid red !important;
+  outline-offset: 2px !important;
+  position: relative !important;
+  z-index: 9999 !important;
+}

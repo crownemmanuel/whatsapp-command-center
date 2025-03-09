@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Presentation Settings</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f0f2f5;
+        color: #333;
+      }
+
+      h1 {
+        color: #00a884;
+        margin-bottom: 20px;
+      }
+
+      .settings-container {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        max-width: 500px;
+        margin: 0 auto;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      input[type="number"] {
+        width: 100px;
+      }
+
+      .buttons {
+        margin-top: 20px;
+        text-align: right;
+      }
+
+      button {
+        background-color: #00a884;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s;
+      }
+
+      button:hover {
+        background-color: #008f71;
+      }
+
+      button.cancel {
+        background-color: #ddd;
+        color: #333;
+        margin-right: 10px;
+      }
+
+      button.cancel:hover {
+        background-color: #ccc;
+      }
+
+      .description {
+        color: #777;
+        font-size: 12px;
+        margin-top: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="settings-container">
+      <h1>Settings</h1>
+      <form id="settings-form">
+        <div class="form-group">
+          <label for="max-messages">Maximum Messages</label>
+          <input type="number" id="max-messages" min="1" max="20" />
+          <div class="description">
+            Number of recent messages to show in presentation mode
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="alert-emoji">Alert Emoji</label>
+          <input type="text" id="alert-emoji" maxlength="10" />
+          <div class="description">The emoji that triggers alert mode</div>
+        </div>
+
+        <div class="form-group">
+          <label for="message-font-size">Message Font Size (pixels)</label>
+          <input type="number" id="message-font-size" min="20" max="100" />
+          <div class="description">
+            Font size for messages in full screen mode
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="popup-alert">Popup Alert Messages</label>
+          <select id="popup-alert">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+          <div class="description">
+            Whether to highlight messages with the alert emoji
+          </div>
+        </div>
+
+        <div class="buttons">
+          <button type="button" class="cancel" id="cancel-btn">Cancel</button>
+          <button type="button" id="save-btn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      // Function to initialize settings from the config passed by the main process
+      function initializeSettings() {
+        if (window.settingsConfig) {
+          const config = window.settingsConfig;
+
+          // Set form values from config
+          document.getElementById("max-messages").value =
+            config.PRESENTATION.MAX_MESSAGES;
+          document.getElementById("alert-emoji").value =
+            config.PRESENTATION.ALERT_EMOJI;
+          document.getElementById("message-font-size").value =
+            config.PRESENTATION.MESSAGE_FONT_SIZE;
+          document.getElementById("popup-alert").value =
+            config.PRESENTATION.POPUP_ALERT_MESSAGES.toString();
+        }
+      }
+
+      // Handle save button
+      document.getElementById("save-btn").addEventListener("click", () => {
+        const updatedConfig = {
+          PRESENTATION: {
+            MAX_MESSAGES: parseInt(
+              document.getElementById("max-messages").value,
+              10
+            ),
+            ALERT_EMOJI: document.getElementById("alert-emoji").value,
+            MESSAGE_FONT_SIZE: parseInt(
+              document.getElementById("message-font-size").value,
+              10
+            ),
+            POPUP_ALERT_MESSAGES:
+              document.getElementById("popup-alert").value === "true",
+          },
+        };
+
+        // Send to main process using the settingsAPI
+        window.settingsAPI.saveSettings(updatedConfig);
+
+        // Close the window
+        window.settingsAPI.closeWindow();
+      });
+
+      // Handle cancel button
+      document.getElementById("cancel-btn").addEventListener("click", () => {
+        window.settingsAPI.closeWindow();
+      });
+
+      // If we already have the config, initialize
+      if (window.settingsConfig) {
+        initializeSettings();
+      }
+    </script>
+  </body>
+</html>
