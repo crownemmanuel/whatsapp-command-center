@@ -9,6 +9,7 @@ yarn.lock
 dist/
 out/
 build/
+release-assets/
 
 # OS generated files
 .DS_Store
