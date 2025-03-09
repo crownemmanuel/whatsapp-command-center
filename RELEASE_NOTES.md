@@ -1,3 +1,16 @@
+# WhatsApp Command Center v0.1.3
+
+This release introduces multi-architecture support, allowing the application to run on both Intel (x64) and ARM-based systems for all platforms.
+
+## What's New in v0.1.3
+
+- **Multi-architecture Support**: Added builds for both x64 (Intel) and ARM64 architectures
+- **Windows Compatibility**: Now works properly on Intel-based Windows PCs
+- **Universal Mac Support**: Added universal binary option for macOS
+- **Improved Linux Builds**: Added x64 architecture support for Linux
+
+## Previous Releases
+
 # WhatsApp Command Center v0.1.2
 
 This release focuses on stability improvements and bug fixes, particularly addressing issues with the application startup in packaged/production mode.
@@ -8,8 +21,6 @@ This release focuses on stability improvements and bug fixes, particularly addre
 - **Enhanced Error Handling**: Added comprehensive logging throughout the application
 - **Resource Path Fixes**: Improved handling of bundled assets
 - **Build Improvements**: Optimized package size by excluding unnecessary files
-
-## Previous Releases
 
 # WhatsApp Command Center v0.1.1
 
