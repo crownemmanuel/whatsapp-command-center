@@ -68,44 +68,69 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64",
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64",
+            "universal"
+          ]
+        }
       ],
       "icon": "icons/icons/mac/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "artifactName": "${productName}-${version}-${arch}.${ext}",
-      "arch": [
-        "x64",
-        "arm64",
-        "universal"
-      ]
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "icons/icons/win/icon.ico",
-      "artifactName": "${productName}-Setup-${version}.${ext}",
-      "arch": [
-        "x64",
-        "arm64"
-      ]
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "Utility",
       "maintainer": "Emmanuel Crown",
       "icon": "icons/icons/png",
-      "artifactName": "${productName}-${version}-${arch}.${ext}",
-      "arch": [
-        "x64",
-        "arm64"
-      ]
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": true,
