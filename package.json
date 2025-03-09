@@ -89,7 +89,7 @@
       "icon": "icons/icons/mac/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "macOS-${productName}-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
@@ -109,7 +109,7 @@
         }
       ],
       "icon": "icons/icons/win/icon.ico",
-      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+      "artifactName": "Windows-${productName}-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -131,7 +131,7 @@
       "category": "Utility",
       "maintainer": "Emmanuel Crown",
       "icon": "icons/icons/png",
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "Linux-${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": true,

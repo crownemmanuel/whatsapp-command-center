@@ -11,6 +11,18 @@ WhatsApp Command Center is a WhatsApp desktop app designed for production rooms 
 
 ## Download the app for your platform:
 
-- Windows: WhatsApp Command Center Setup
-- macOS: WhatsApp Command Center DMG or ZIP
-- Linux: WhatsApp Command Center AppImage or DEB package
+### Windows
+
+- **Setup:** Windows-WhatsApp Command Center-0.1.4.exe
+- **Platform specific:** Windows-WhatsApp Command Center-0.1.4-x64.exe (64-bit) or Windows-WhatsApp Command Center-0.1.4-arm64.exe (ARM)
+
+### macOS
+
+- **DMG:** macOS-WhatsApp Command Center-0.1.4-universal.dmg
+- **ZIP:** macOS-WhatsApp Command Center-0.1.4-universal.zip
+- **Platform specific:** Versions for specific architectures (x64, arm64) also available
+
+### Linux
+
+- **AppImage:** Linux-WhatsApp Command Center-0.1.4-x86_64.AppImage
+- **Platform specific:** Linux versions for specific architectures also available
