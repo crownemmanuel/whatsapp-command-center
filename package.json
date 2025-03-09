@@ -23,21 +23,21 @@
   "build": {
     "appId": "com.command.whatsapp",
     "productName": "WhatsApp Command Center",
-    "icon": "icons/icon.png",
+    "icon": "icons/icons/png/1024x1024.png",
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "icons/icon.png"
+      "icon": "icons/icons/mac/icon.icns"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
       ],
-      "icon": "icons/icon.png"
+      "icon": "icons/icons/win/icon.ico"
     },
     "linux": {
       "target": [
@@ -46,7 +46,7 @@
       ],
       "category": "Utility",
       "maintainer": "Emmanuel Crown",
-      "icon": "icons/icon.png"
+      "icon": "icons/icons/png"
     }
   }
 }
