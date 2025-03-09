@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-control-center",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Enhanced WhatsApp Web interface for control rooms and productions",
   "main": "main.js",
   "homepage": "https://github.com/crownemmanuel/whatsapp-command-center",
@@ -29,6 +29,34 @@
     "appId": "com.command.whatsapp",
     "productName": "WhatsApp Command Center",
     "icon": "icons/icons/png/1024x1024.png",
+    "files": [
+      "**/*",
+      "!dist",
+      "!dist/**",
+      "!release-assets",
+      "!release-assets/**",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets"
+      },
+      {
+        "from": "icons",
+        "to": "icons"
+      }
+    ],
     "publish": [
       {
         "provider": "github",

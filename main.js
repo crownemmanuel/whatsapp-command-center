@@ -11,6 +11,16 @@ const fs = require("fs");
 const config = require("./config");
 const { autoUpdater } = require("electron-updater");
 
+// Set up enhanced logging
+const log = require("electron-log");
+log.transports.file.level = "debug";
+log.catchErrors({
+  showDialog: false,
+  onError(error) {
+    log.error("Application error:", error);
+  },
+});
+
 let mainWindow;
 let settingsWindow;
 let splashWindow;
@@ -96,131 +106,263 @@ function setupAutoUpdater() {
 
 // Create splash window
 function createSplashWindow() {
-  splashWindow = new BrowserWindow({
-    width: 500,
-    height: 300,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    icon: path.join(__dirname, "icons", "icon.png"),
-  });
+  try {
+    log.info("Creating splash window");
+    splashWindow = new BrowserWindow({
+      width: 500,
+      height: 300,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      icon: path.join(__dirname, "icons", "icon.png"),
+    });
 
-  // Create HTML content for splash screen
-  const splashContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: transparent;
-            overflow: hidden;
+    // Determine asset paths based on environment (development vs production)
+    let assetPath;
+    if (app.isPackaged) {
+      // In production, use the extraResources path
+      assetPath = path.join(
+        process.resourcesPath,
+        "assets",
+        "whatapp_command_center_splash.jpg"
+      );
+      log.info(`Using production splash image path: ${assetPath}`);
+    } else {
+      // In development, use the local path
+      assetPath = path.join(
+        __dirname,
+        "assets",
+        "whatapp_command_center_splash.jpg"
+      );
+      log.info(`Using development splash image path: ${assetPath}`);
+    }
+
+    // Check if the splash image exists
+    let imageExists = false;
+    try {
+      fs.accessSync(assetPath, fs.constants.R_OK);
+      imageExists = true;
+      log.info("Splash image found successfully");
+    } catch (err) {
+      log.error(`Splash image not found at ${assetPath}:`, err);
+    }
+
+    // Create HTML content for splash screen
+    const splashContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              background-color: ${imageExists ? "transparent" : "#202C33"};
+              overflow: hidden;
+              color: white;
+              font-family: Arial, sans-serif;
+            }
+            img {
+              max-width: 100%;
+              max-height: 100%;
+              object-fit: contain;
+            }
+            .text-center {
+              text-align: center;
+              padding: 20px;
+            }
+            h1 {
+              font-size: 24px;
+              margin-bottom: 10px;
+            }
+          </style>
+        </head>
+        <body>
+          ${
+            imageExists
+              ? `<img src="${assetPath}" alt="WhatsApp Control Center">`
+              : `<div class="text-center">
+                 <h1>WhatsApp Control Center</h1>
+                 <p>Loading application...</p>
+               </div>`
           }
-          img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-          }
-        </style>
-      </head>
-      <body>
-        <img src="${path.join(
-          __dirname,
-          "assets",
-          "whatapp_command_center_splash.jpg"
-        )}" alt="WhatsApp Control Center">
-      </body>
-    </html>
-  `;
+        </body>
+      </html>
+    `;
 
-  // Write splash content to a temporary file
-  const splashPath = path.join(__dirname, "splash.html");
-  fs.writeFileSync(splashPath, splashContent);
+    const splashPath = path.join(app.getPath("temp"), "splash.html");
+    log.info(`Writing splash content to ${splashPath}`);
+    fs.writeFileSync(splashPath, splashContent);
 
-  // Load the splash screen HTML
-  splashWindow.loadFile(splashPath);
+    // Load the splash screen HTML
+    splashWindow.loadFile(splashPath);
 
-  // Close splash and open main window after 2.5 seconds
-  setTimeout(() => {
+    // Close splash and open main window after 2.5 seconds
+    setTimeout(() => {
+      log.info("Splash timeout - creating main window");
+      createWindow();
+      if (splashWindow) {
+        splashWindow.close();
+        // Remove temp file
+        try {
+          fs.unlinkSync(splashPath);
+        } catch (err) {
+          log.warn("Failed to delete temp splash file:", err);
+        }
+      }
+    }, 2500);
+  } catch (error) {
+    log.error("Error creating splash window:", error);
+    // If splash fails, try to create main window directly
     createWindow();
-    splashWindow.close();
-    // Remove temp file
-    fs.unlinkSync(splashPath);
-  }, 2500);
+  }
 }
 
 function createWindow() {
-  // Create the browser window
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      nodeIntegration: false, // For security reasons
-      contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
-    },
-    icon: path.join(__dirname, "icons", "icon.png"),
-    show: false, // Don't show until ready
-  });
+  try {
+    log.info("Creating main window");
 
-  // Set Chrome user agent to bypass WhatsApp browser check
-  const userAgent =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-  mainWindow.webContents.setUserAgent(userAgent);
+    // Determine resource paths based on environment (development vs production)
+    const resourcePath = app.isPackaged ? process.resourcesPath : __dirname;
+    const preloadPath = path.join(__dirname, "preload.js");
+    const iconPath = app.isPackaged
+      ? path.join(resourcePath, "icons", "icon.png")
+      : path.join(__dirname, "icons", "icon.png");
 
-  // Load WhatsApp Web
-  mainWindow.loadURL("https://web.whatsapp.com/");
+    log.info(`Resource path: ${resourcePath}`);
+    log.info(`Preload path: ${preloadPath}`);
+    log.info(`Icon path: ${iconPath}`);
 
-  // Open DevTools in development or inspection mode
-  if (config.AUTO_OPEN_DEVTOOLS) {
-    mainWindow.webContents.openDevTools();
+    // Create the browser window
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: false, // For security reasons
+        contextIsolation: true,
+        preload: preloadPath,
+      },
+      icon: iconPath,
+      show: false, // Don't show until ready
+    });
+
+    // Set Chrome user agent to bypass WhatsApp browser check
+    const userAgent =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    mainWindow.webContents.setUserAgent(userAgent);
+
+    // Load WhatsApp Web
+    log.info("Loading WhatsApp Web URL");
+    mainWindow.loadURL("https://web.whatsapp.com/");
+
+    // Open DevTools in development or inspection mode
+    if (config.AUTO_OPEN_DEVTOOLS) {
+      mainWindow.webContents.openDevTools();
+    }
+
+    // Inject our custom CSS and JavaScript after the page loads
+    mainWindow.webContents.on("did-finish-load", () => {
+      log.info("Main window finished loading");
+      try {
+        // Determine paths for CSS and JS based on environment
+        const cssPath = app.isPackaged
+          ? path.join(__dirname, "styles.css")
+          : path.join(__dirname, "styles.css");
+
+        const jsPath = app.isPackaged
+          ? path.join(__dirname, "renderer.js")
+          : path.join(__dirname, "renderer.js");
+
+        log.info(`Loading CSS from ${cssPath}`);
+        let cssContent;
+        try {
+          cssContent = fs.readFileSync(cssPath, "utf8");
+          mainWindow.webContents.insertCSS(cssContent);
+          log.info("CSS injected successfully");
+        } catch (cssErr) {
+          log.error("Error loading CSS:", cssErr);
+        }
+
+        // Pass config to renderer script
+        const configScript = `window.presentationAppConfig = ${JSON.stringify(
+          config
+        )};`;
+        mainWindow.webContents
+          .executeJavaScript(configScript)
+          .then(() => log.info("Config injected successfully"))
+          .catch((err) => log.error("Error injecting config:", err));
+
+        // Inject JavaScript
+        log.info(`Loading JS from ${jsPath}`);
+        let jsContent;
+        try {
+          jsContent = fs.readFileSync(jsPath, "utf8");
+          mainWindow.webContents
+            .executeJavaScript(jsContent)
+            .then(() => log.info("JavaScript injected successfully"))
+            .catch((err) => log.error("Error executing JavaScript:", err));
+        } catch (jsErr) {
+          log.error("Error loading JavaScript file:", jsErr);
+        }
+      } catch (error) {
+        log.error("Error injecting resources:", error);
+      }
+    });
+
+    // Handle login issues - reload page if needed
+    mainWindow.webContents.on(
+      "did-fail-load",
+      (event, errorCode, errorDescription) => {
+        log.error(`Page failed to load: ${errorCode} - ${errorDescription}`);
+        setTimeout(() => {
+          log.info("Attempting to reload WhatsApp Web");
+          mainWindow.loadURL("https://web.whatsapp.com/");
+        }, 3000);
+      }
+    );
+
+    // Create the application menu
+    createApplicationMenu();
+
+    // Initialize auto updater
+    setupAutoUpdater();
+
+    // Show window when ready
+    mainWindow.once("ready-to-show", () => {
+      log.info("Main window ready to show");
+      mainWindow.show();
+    });
+
+    // Log errors from the renderer process
+    mainWindow.webContents.on("crashed", () => {
+      log.error("Renderer process crashed");
+    });
+
+    mainWindow.webContents.on(
+      "console-message",
+      (event, level, message, line, sourceId) => {
+        // Fix the log level mapping
+        const levels = ["debug", "info", "warning", "error"];
+        const logLevel = levels[level] || "info";
+
+        // Use the correct log function call
+        if (logLevel === "debug") log.debug(`[Renderer] ${message}`);
+        else if (logLevel === "info") log.info(`[Renderer] ${message}`);
+        else if (logLevel === "warning") log.warn(`[Renderer] ${message}`);
+        else if (logLevel === "error") log.error(`[Renderer] ${message}`);
+        else log.info(`[Renderer] ${message}`);
+      }
+    );
+  } catch (error) {
+    log.error("Error creating main window:", error);
+    dialog.showErrorBox(
+      "Application Error",
+      `Failed to start application: ${error.message}\n\nCheck the logs for more details.`
+    );
   }
-
-  // Inject our custom CSS and JavaScript after the page loads
-  mainWindow.webContents.on("did-finish-load", () => {
-    // Inject CSS
-    const cssContent = fs.readFileSync(
-      path.join(__dirname, "styles.css"),
-      "utf8"
-    );
-    mainWindow.webContents.insertCSS(cssContent);
-
-    // Pass config to renderer script
-    const configScript = `window.presentationAppConfig = ${JSON.stringify(
-      config
-    )};`;
-    mainWindow.webContents.executeJavaScript(configScript);
-
-    // Inject JavaScript
-    const jsContent = fs.readFileSync(
-      path.join(__dirname, "renderer.js"),
-      "utf8"
-    );
-    mainWindow.webContents.executeJavaScript(jsContent);
-  });
-
-  // Handle login issues - reload page if needed
-  mainWindow.webContents.on("did-fail-load", () => {
-    setTimeout(() => {
-      mainWindow.loadURL("https://web.whatsapp.com/");
-    }, 3000);
-  });
-
-  // Create the application menu
-  createApplicationMenu();
-
-  // Initialize auto updater
-  setupAutoUpdater();
-
-  // Show window when ready
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
-  });
 }
 
 // Create application menu with only About and Settings
@@ -321,11 +463,21 @@ function showAboutDialog() {
 }
 
 app.whenReady().then(() => {
-  createSplashWindow(); // Show splash screen instead of directly creating main window
+  log.info("App ready, initializing application");
+  try {
+    createSplashWindow(); // Show splash screen instead of directly creating main window
 
-  app.on("activate", function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+    app.on("activate", function () {
+      log.info("App activated");
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  } catch (error) {
+    log.error("Error in app initialization:", error);
+    dialog.showErrorBox(
+      "Application Error",
+      `Failed to initialize application: ${error.message}\n\nCheck the logs for more details.`
+    );
+  }
 });
 
 app.on("window-all-closed", function () {
@@ -384,4 +536,13 @@ ipcMain.on("download-update", () => {
 
 ipcMain.on("quit-and-install", () => {
   autoUpdater.quitAndInstall();
+});
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+  log.error("Uncaught exception:", error);
+  dialog.showErrorBox(
+    "Application Error",
+    `An unexpected error occurred: ${error.message}\n\nCheck the logs for more details.`
+  );
 });

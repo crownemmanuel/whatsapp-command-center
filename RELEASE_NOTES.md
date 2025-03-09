@@ -1,3 +1,20 @@
+# WhatsApp Command Center v0.1.2
+
+This release focuses on stability improvements and bug fixes, particularly addressing issues with the application startup in packaged/production mode.
+
+## What's New in v0.1.2
+
+- **Fixed Startup Issues**: Resolved issues with application not starting in packaged/production mode
+- **Enhanced Error Handling**: Added comprehensive logging throughout the application
+- **Resource Path Fixes**: Improved handling of bundled assets
+- **Build Improvements**: Optimized package size by excluding unnecessary files
+
+## Previous Releases
+
+# WhatsApp Command Center v0.1.1
+
+Minor bug fixes and improvements.
+
 # WhatsApp Command Center v0.1.0
 
 This is the initial release of WhatsApp Command Center, an enhanced WhatsApp Web interface for control rooms and productions.
@@ -15,18 +32,18 @@ Choose the appropriate installation file for your operating system:
 
 ### Windows
 
-- Installer: `WhatsApp Command Center Setup 0.1.0.exe`
-- Portable: `WhatsApp Command Center 0.1.0.exe`
+- Installer: `WhatsApp Command Center Setup 0.1.2.exe`
+- Portable: `WhatsApp Command Center 0.1.2.exe`
 
 ### macOS
 
-- Disk Image: `WhatsApp Command Center-0.1.0-arm64.dmg`
-- Zip Archive: `WhatsApp Command Center-0.1.0-arm64-mac.zip`
+- Disk Image: `WhatsApp Command Center-0.1.2-arm64.dmg`
+- Zip Archive: `WhatsApp Command Center-0.1.2-arm64-mac.zip`
 
 ### Linux
 
-- AppImage: `WhatsApp Command Center-0.1.0-arm64.AppImage`
-- Debian Package: `whatsapp-control-center_0.1.0_arm64.deb`
+- AppImage: `WhatsApp Command Center-0.1.2-arm64.AppImage`
+- Debian Package: `whatsapp-control-center_0.1.2_arm64.deb`
 
 ## Known Issues
 
@@ -35,7 +52,7 @@ Choose the appropriate installation file for your operating system:
 
 ## What's Next
 
-We're already working on version 0.2.0 which will include:
+We're already working on future versions which will include:
 
 - Improved message detection
 - Better emoji handling
