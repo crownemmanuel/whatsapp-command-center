@@ -1,7 +1,7 @@
 # WhatsApp Command Center
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.1-blue)
 
 WhatsApp Command Center is a WhatsApp desktop app designed for production rooms and control rooms that have a workflow for using WhatsApp to send messages during productions and live events. They display WhatsApp messages from a particular group in full screen mode so it's legibly visible across the room. And users can tag certain messages to trigger the attention of people in the control room.
 

@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-control-center",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Enhanced WhatsApp Web interface for control rooms and productions",
   "main": "main.js",
   "homepage": "https://github.com/crownemmanuel/whatsapp-command-center",
