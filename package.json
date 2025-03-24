@@ -9,8 +9,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "build": "electron-builder --win --x64 --mac --universal",
-    "publish": "electron-builder --win --x64 --mac --universal -p always"
+    "build": "electron-builder --mac",
+    "build-win": "electron-builder --win --x64",
+    "publish": "electron-builder -p always"
   },
   "author": {
     "name": "Emmanuel Crown"
@@ -72,16 +73,12 @@
         {
           "target": "dmg",
           "arch": [
-            "x64",
-            "arm64",
             "universal"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64",
-            "arm64",
             "universal"
           ]
         }
@@ -96,15 +93,13 @@
         {
           "target": "nsis",
           "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         },
         {
           "target": "portable",
           "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         }
       ],
