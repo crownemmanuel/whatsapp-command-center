@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld("pinAPI", {
   // Handle cancel button
   cancelValidation: () => ipcRenderer.send("cancel-pin-validation"),
 
+  // Handle forgot PIN
+  forgotPin: () => ipcRenderer.send("forgot-pin"),
+
   // Listen for validation results
   onValidationResult: (callback) =>
     ipcRenderer.on("pin-validation-result", (event, result) =>
@@ -37,5 +40,10 @@ window.addEventListener("DOMContentLoaded", () => {
         pinInput.focus();
       }
     }
+  });
+
+  // Listen for pin reset status updates
+  ipcRenderer.on("pin-reset-completed", (event) => {
+    // The main process will handle the window closure and app reload
   });
 });

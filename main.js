@@ -452,9 +452,36 @@ function createApplicationMenu() {
         ]
       : []),
 
+    // File menu for Windows/Linux
+    ...(isMac
+      ? []
+      : [
+          {
+            label: "File",
+            submenu: [
+              {
+                label: "Check for Updates",
+                click: () => autoUpdater.checkForUpdates(),
+              },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          },
+        ]),
+
     {
       label: "Options",
       submenu: [
+        {
+          label: "Fullscreen Mode",
+          accelerator: "CmdOrCtrl+P",
+          click: () => {
+            // Send message to renderer to toggle presentation mode
+            if (mainWindow) {
+              mainWindow.webContents.send("toggle-presentation-mode");
+            }
+          },
+        },
         {
           label: "Settings",
           click: () => openSettingsWindow(),
@@ -753,11 +780,196 @@ ipcMain.on("validate-pin", (event, enteredPin) => {
 ipcMain.on("cancel-pin-validation", () => {
   if (pinValidationWindow) {
     const cancelCallback = pinValidationWindow.cancelCallback;
+
+    // Store the reference before closing to avoid null check issues
+    const storedCallback = cancelCallback;
+
+    // Close the current window
     pinValidationWindow.close();
     pinValidationWindow = null;
 
-    if (cancelCallback) {
-      cancelCallback();
+    // If there's a cancel callback, call it (usually app.quit())
+    if (storedCallback) {
+      storedCallback();
+    } else if (mainWindow) {
+      // If no callback (e.g., from full-screen mode), recreate PIN window immediately
+      // to ensure the PIN protection stays in place
+      createPinValidationWindow(
+        // Success callback - let the original action proceed
+        () => {
+          // PIN verified successfully
+        },
+        // Cancel callback - prevent window access
+        () => {
+          app.quit();
+        }
+      );
     }
+  }
+});
+
+// Add IPC handler for forgot PIN functionality
+ipcMain.on("forgot-pin", () => {
+  if (pinValidationWindow) {
+    // 1. Clear the existing PIN
+    config.SECURITY.PIN_CODE = "";
+    config.SECURITY.PIN_ENABLED = false;
+
+    // Save the updated configuration
+    store.set("SECURITY", config.SECURITY);
+
+    log.info("PIN reset initiated - clearing data");
+
+    // 2. Clear all WhatsApp data and cache
+    session.defaultSession
+      .clearStorageData({
+        storages: [
+          "appcache",
+          "cookies",
+          "filesystem",
+          "indexdb",
+          "localstorage",
+          "shadercache",
+          "websql",
+          "serviceworkers",
+          "cachestorage",
+        ],
+      })
+      .then(() => {
+        log.info("Cache and data cleared successfully");
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          // Set up a one-time load finished listener
+          const loadFinishedListener = () => {
+            log.info("WhatsApp reload completed");
+
+            // Reinject CSS and JavaScript just like in the initial load
+            try {
+              // Determine paths for CSS and JS based on environment
+              const cssPath = app.isPackaged
+                ? path.join(__dirname, "styles.css")
+                : path.join(__dirname, "styles.css");
+
+              const jsPath = app.isPackaged
+                ? path.join(__dirname, "renderer.js")
+                : path.join(__dirname, "renderer.js");
+
+              log.info(`Reinjecting CSS from ${cssPath}`);
+              let cssContent;
+              try {
+                cssContent = fs.readFileSync(cssPath, "utf8");
+                mainWindow.webContents.insertCSS(cssContent);
+                log.info("CSS reinjected successfully");
+              } catch (cssErr) {
+                log.error("Error loading CSS:", cssErr);
+              }
+
+              // Pass config to renderer script
+              const configScript = `window.presentationAppConfig = ${JSON.stringify(
+                config
+              )};`;
+              mainWindow.webContents
+                .executeJavaScript(configScript)
+                .then(() => log.info("Config reinjected successfully"))
+                .catch((err) => log.error("Error injecting config:", err));
+
+              // Inject JavaScript
+              log.info(`Reinjecting JS from ${jsPath}`);
+              let jsContent;
+              try {
+                jsContent = fs.readFileSync(jsPath, "utf8");
+                mainWindow.webContents
+                  .executeJavaScript(jsContent)
+                  .then(() => log.info("JavaScript reinjected successfully"))
+                  .catch((err) =>
+                    log.error("Error executing JavaScript:", err)
+                  );
+              } catch (jsErr) {
+                log.error("Error loading JavaScript file:", jsErr);
+              }
+            } catch (error) {
+              log.error("Error reinjecting resources:", error);
+            }
+
+            // Small delay to ensure everything is rendered properly
+            setTimeout(() => {
+              // Only now close the PIN validation window
+              if (pinValidationWindow && !pinValidationWindow.isDestroyed()) {
+                pinValidationWindow.close();
+                pinValidationWindow = null;
+              }
+            }, 500);
+          };
+
+          // Listen for the page to finish loading
+          mainWindow.webContents.once("did-finish-load", loadFinishedListener);
+
+          // Start loading WhatsApp
+          log.info("Reloading WhatsApp web");
+          mainWindow.loadURL("https://web.whatsapp.com/");
+        } else {
+          // No main window, close PIN window
+          if (pinValidationWindow && !pinValidationWindow.isDestroyed()) {
+            pinValidationWindow.close();
+            pinValidationWindow = null;
+          }
+        }
+      })
+      .catch((error) => {
+        log.error("Error clearing cache:", error);
+
+        // Set up load finished listener even in case of error
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.once("did-finish-load", () => {
+            // Reinject CSS and JavaScript here too
+            try {
+              const cssPath = app.isPackaged
+                ? path.join(__dirname, "styles.css")
+                : path.join(__dirname, "styles.css");
+
+              const jsPath = app.isPackaged
+                ? path.join(__dirname, "renderer.js")
+                : path.join(__dirname, "renderer.js");
+
+              let cssContent;
+              try {
+                cssContent = fs.readFileSync(cssPath, "utf8");
+                mainWindow.webContents.insertCSS(cssContent);
+              } catch (cssErr) {
+                log.error("Error loading CSS in error handler:", cssErr);
+              }
+
+              const configScript = `window.presentationAppConfig = ${JSON.stringify(
+                config
+              )};`;
+              mainWindow.webContents.executeJavaScript(configScript);
+
+              let jsContent;
+              try {
+                jsContent = fs.readFileSync(jsPath, "utf8");
+                mainWindow.webContents.executeJavaScript(jsContent);
+              } catch (jsErr) {
+                log.error("Error loading JavaScript in error handler:", jsErr);
+              }
+            } catch (error) {
+              log.error("Error reinjecting resources in error handler:", error);
+            }
+
+            setTimeout(() => {
+              if (pinValidationWindow && !pinValidationWindow.isDestroyed()) {
+                pinValidationWindow.close();
+                pinValidationWindow = null;
+              }
+            }, 500);
+          });
+
+          mainWindow.loadURL("https://web.whatsapp.com/");
+        } else {
+          if (pinValidationWindow && !pinValidationWindow.isDestroyed()) {
+            pinValidationWindow.close();
+            pinValidationWindow = null;
+          }
+        }
+      });
   }
 });

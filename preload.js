@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Listen for config updates
   onConfigUpdate: (callback) => ipcRenderer.on("config-updated", callback),
 
+  // Listen for presentation mode toggle from menu
+  onTogglePresentationMode: (callback) =>
+    ipcRenderer.on("toggle-presentation-mode", (event) => callback()),
+
   // Auto update functions
   checkForUpdates: () => ipcRenderer.send("check-for-updates"),
   downloadUpdate: () => ipcRenderer.send("download-update"),

@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-control-center",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Enhanced WhatsApp Web interface for control rooms and productions",
   "main": "main.js",
   "homepage": "https://github.com/crownemmanuel/whatsapp-command-center",
@@ -9,11 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "build": "electron-builder --mac --universal --win --x64 --arm64 --linux --x64 --arm64",
-    "build:win": "electron-builder --win --x64 --arm64",
-    "build:mac": "electron-builder --mac --universal",
-    "build:linux": "electron-builder --linux --x64 --arm64",
-    "publish": "electron-builder --mac --universal --win --x64 --arm64 --linux --x64 --arm64 -p always"
+    "build": "electron-builder --win --x64 --mac --universal",
+    "publish": "electron-builder --win --x64 --mac --universal -p always"
   },
   "author": {
     "name": "Emmanuel Crown"
@@ -92,7 +89,7 @@
       "icon": "icons/icons/mac/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "artifactName": "macOS-${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
@@ -112,7 +109,7 @@
         }
       ],
       "icon": "icons/icons/win/icon.ico",
-      "artifactName": "Windows-${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -134,7 +131,7 @@
       "category": "Utility",
       "maintainer": "Emmanuel Crown",
       "icon": "icons/icons/png",
-      "artifactName": "Linux-${productName}-${version}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": true,

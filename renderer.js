@@ -54,6 +54,17 @@
   let currentChat = null;
   let lastProcessedMessages = new Set(); // Track already processed messages
 
+  // Function to handle the 'S' key press to stop flashing
+  function handleKeyPress(e) {
+    if (
+      isInPresentationMode &&
+      isFlashing &&
+      (e.key === "s" || e.key === "S")
+    ) {
+      stopFlashing();
+    }
+  }
+
   // Function to update configuration from main process
   function updateConfigFromMain() {
     if (window.presentationAppConfig) {
@@ -288,6 +299,9 @@
     // Setup update notification
     setupUpdateNotification();
 
+    // Add the custom header at the top of the page
+    addCustomHeader();
+
     // Create mutation observer to detect when we enter a chat
     const observer = new MutationObserver(detectChatView);
     observer.observe(document.body, { childList: true, subtree: true });
@@ -303,6 +317,107 @@
 
     // Initialize dynamic styles based on config
     updateUIWithNewConfig();
+  }
+
+  // Add a custom header at the top of the WhatsApp page
+  function addCustomHeader() {
+    // Check if header already exists
+    if (document.getElementById("whatsapp-command-header")) {
+      return;
+    }
+
+    // Create the header container
+    const header = document.createElement("div");
+    header.id = "whatsapp-command-header";
+    header.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 40px;
+      background-color: #1a1a1a;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      z-index: 1000;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    `;
+
+    // Create the left side with app name
+    const appName = document.createElement("div");
+    appName.textContent = "WhatsApp Command Center";
+    appName.style.cssText = `
+      font-weight: bold;
+      font-size: 16px;
+    `;
+
+    // Create the right side with controls
+    const controls = document.createElement("div");
+    controls.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-right: 20px;
+    `;
+
+    // Create present button
+    const presentButton = document.createElement("button");
+    presentButton.id = PRESENTATION_MODE_BUTTON_ID;
+    presentButton.innerHTML = "📺 Fullscreen Mode";
+    presentButton.title = "Enter Presentation Mode";
+    presentButton.style.cssText = `
+      background-color: #008b6f;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    `;
+    presentButton.addEventListener("click", togglePresentationMode);
+    controls.appendChild(presentButton);
+
+    // Add inspection button if inspection mode is enabled
+    if (config.INSPECTION_MODE) {
+      const inspectionButton = document.createElement("button");
+      inspectionButton.id = INSPECTION_MODE_BUTTON_ID;
+      inspectionButton.innerHTML = "🔍 Inspect";
+      inspectionButton.title = "Toggle Inspection Mode";
+      inspectionButton.style.cssText = `
+        background-color: #f44336;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 14px;
+      `;
+      inspectionButton.addEventListener("click", toggleInspectionMode);
+      controls.appendChild(inspectionButton);
+    }
+
+    // Add elements to header
+    header.appendChild(appName);
+    header.appendChild(controls);
+
+    // Add header to the document
+    document.body.insertBefore(header, document.body.firstChild);
+
+    // Push the WhatsApp content down to make room for the header
+    const pushContent = () => {
+      const whatsappContent = document.querySelector(
+        '#app, .app, [role="application"]'
+      );
+      if (whatsappContent) {
+        whatsappContent.style.marginTop = "40px";
+      } else {
+        setTimeout(pushContent, 500);
+      }
+    };
+
+    pushContent();
   }
 
   // Initialize inspection mode
@@ -472,51 +587,9 @@
 
     if (!header) return;
 
-    // Create our button
-    const button = document.createElement("button");
-    button.id = PRESENTATION_MODE_BUTTON_ID;
-    button.innerHTML = "📺 Present";
-    button.title = "Enter Presentation Mode";
-    button.style.cssText = `
-      background-color: #00a884;
-      color: white;
-      border: none;
-      border-radius: 3px;
-      padding: 6px 12px;
-      margin-right: 10px;
-      cursor: pointer;
-      font-size: 14px;
-    `;
-
-    // Add click event
-    button.addEventListener("click", togglePresentationMode);
-
-    // Add to header
-    header.appendChild(button);
-
-    // Add inspection mode button if inspection is enabled
-    if (config.INSPECTION_MODE) {
-      const inspectionButton = document.createElement("button");
-      inspectionButton.id = INSPECTION_MODE_BUTTON_ID;
-      inspectionButton.innerHTML = "🔍 Inspect";
-      inspectionButton.title = "Toggle Inspection Mode";
-      inspectionButton.style.cssText = `
-        background-color: #f44336;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        padding: 6px 12px;
-        margin-right: 10px;
-        cursor: pointer;
-        font-size: 14px;
-      `;
-
-      // Add click event
-      inspectionButton.addEventListener("click", toggleInspectionMode);
-
-      // Add to header
-      header.appendChild(inspectionButton);
-    }
+    // The buttons are now in the custom header, so we only need to
+    // store the reference to the main container and start monitoring
+    mainContainer = chatContainer;
 
     // Start monitoring messages
     startMessageMonitoring();
@@ -524,16 +597,67 @@
 
   // Toggle presentation mode on/off
   function togglePresentationMode() {
+    // Log the toggle action
+    if (window.electronAPI) {
+      window.electronAPI.logInfo(
+        `Toggling presentation mode. Current state: ${
+          isInPresentationMode ? "active" : "inactive"
+        }`
+      );
+    }
+
     if (isInPresentationMode) {
       exitPresentationMode();
     } else {
+      // Check if mainContainer is set, and if not, try to find it
+      if (!mainContainer) {
+        // Look for the chat container before trying to enter presentation mode
+        const chatContainer =
+          document.querySelector(
+            '[data-testid="conversation-panel-wrapper"]'
+          ) ||
+          document.querySelector(".two") ||
+          document.querySelector('[data-testid="conversation-panel"]');
+
+        if (chatContainer) {
+          if (window.electronAPI) {
+            window.electronAPI.logInfo(
+              "Chat container found, setting mainContainer"
+            );
+          }
+          mainContainer = chatContainer;
+          // Start monitoring messages if it wasn't already started
+          startMessageMonitoring();
+        } else {
+          if (window.electronAPI) {
+            window.electronAPI.logInfo(
+              "No chat container found, can't enter presentation mode"
+            );
+          }
+          alert("Please open a chat first before entering presentation mode.");
+          return;
+        }
+      }
+
       enterPresentationMode();
     }
   }
 
   // Enter presentation mode
   function enterPresentationMode() {
-    if (!mainContainer) return;
+    if (!mainContainer) {
+      if (window.electronAPI) {
+        window.electronAPI.logInfo(
+          "Cannot enter presentation mode: mainContainer not found"
+        );
+      }
+      return;
+    }
+
+    // Log entering presentation mode
+    if (window.electronAPI) {
+      window.electronAPI.logInfo("Entering presentation mode");
+    }
 
     // Get chat title
     const chatTitle =
@@ -560,10 +684,10 @@
 
     // Add header with title and exit button
     container.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background-color: #00a884;">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background-color: #1a1a1a;">
         <h1 style="margin: 0; font-size: 24px;">${chatTitle} - Presentation Mode</h1>
         <div>
-          <button id="stop-flashing-btn" style="background-color: #d33; color: white; border: none; border-radius: 3px; padding: 6px 12px; margin-right: 10px; display: none; cursor: pointer;">Stop Flashing</button>
+          <button id="stop-flashing-btn" style="background-color: #d33; color: white; border: none; border-radius: 3px; padding: 6px 12px; margin-right: 10px; display: none; cursor: pointer;">Stop Flashing (S)</button>
           <button id="exit-presentation-btn" style="background-color: #333; color: white; border: none; border-radius: 3px; padding: 6px 12px; cursor: pointer;">Exit</button>
         </div>
       </div>
@@ -582,15 +706,18 @@
       .getElementById("stop-flashing-btn")
       .addEventListener("click", stopFlashing);
 
+    // Add keyboard event listener for 'S' key to stop flashing
+    document.addEventListener("keydown", handleKeyPress);
+
     // Enter fullscreen if possible
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen();
     }
 
-    // Update button text
+    // Update button text in our custom header
     const presentButton = document.getElementById(PRESENTATION_MODE_BUTTON_ID);
     if (presentButton) {
-      presentButton.innerHTML = "📺 Exit Present";
+      presentButton.innerHTML = "📺 Exit Present Mode";
       presentButton.title = "Exit Presentation Mode";
     }
 
@@ -618,21 +745,49 @@
 
   // Actual exit presentation mode implementation (after PIN verification if needed)
   function actuallyExitPresentationMode() {
+    // Log the state transition for debugging
+    if (window.electronAPI) {
+      window.electronAPI.logInfo("Exiting presentation mode");
+    } else {
+      console.log("Exiting presentation mode");
+    }
+
     const container = document.getElementById(FULL_SCREEN_CONTAINER_ID);
     if (container) {
       container.remove();
     }
+
+    // Remove keydown event listener
+    document.removeEventListener("keydown", handleKeyPress);
 
     // Exit fullscreen if we're in it
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen();
     }
 
-    // Update button text
+    // Update button text - now we look for the button in our custom header
     const presentButton = document.getElementById(PRESENTATION_MODE_BUTTON_ID);
     if (presentButton) {
-      presentButton.innerHTML = "📺 Present";
+      presentButton.innerHTML = "📺 Fullscreen Mode";
       presentButton.title = "Enter Presentation Mode";
+
+      // Log button text change for debugging
+      if (window.electronAPI) {
+        window.electronAPI.logInfo(
+          "Reset button text to: " + presentButton.innerHTML
+        );
+      } else {
+        console.log("Reset button text to: " + presentButton.innerHTML);
+      }
+    } else {
+      // Log if button is not found
+      if (window.electronAPI) {
+        window.electronAPI.logInfo(
+          "Present button not found when exiting presentation mode"
+        );
+      } else {
+        console.log("Present button not found when exiting presentation mode");
+      }
     }
 
     // Stop any flashing
@@ -1267,4 +1422,22 @@
 
   // Start the initialization after a short delay to ensure WhatsApp Web has loaded
   setTimeout(initialize, 5000);
+
+  // Listen for IPC messages from the main process
+  if (window.electronAPI) {
+    // Listen for configuration changes
+    window.electronAPI.onConfigUpdate(updateConfigFromMain);
+
+    // Listen for presentation mode toggle from menu
+    window.electronAPI.onTogglePresentationMode(() => {
+      if (window.electronAPI) {
+        window.electronAPI.logInfo(
+          "Received toggle presentation mode command from menu"
+        );
+      }
+
+      // Toggle presentation mode
+      togglePresentationMode();
+    });
+  }
 })();
