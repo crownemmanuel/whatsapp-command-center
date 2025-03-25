@@ -10,7 +10,9 @@ dist/
 out/
 build/
 release-assets/
-.cursor
+.cursor/
+.cursorignore
+.cursor/rules/github.mdc
 
 # OS generated files
 .DS_Store

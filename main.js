@@ -491,19 +491,55 @@ function createWindow() {
           cspHeaders.forEach((header) => {
             let cspValue = responseHeaders[header];
 
-            // Add or update media-src to allow blob URLs needed for QR code
-            if (!cspValue.includes("media-src blob:")) {
-              cspValue = cspValue.replace(
-                /media-src\s+([^;]+)/gi,
-                "media-src $1 blob: mediastream:"
-              );
+            // Log for debugging
+            log.info(
+              `Processing CSP header ${header}: ${typeof cspValue} - ${
+                Array.isArray(cspValue) ? "is array" : "not array"
+              }`
+            );
 
-              if (!cspValue.includes("media-src")) {
-                cspValue +=
-                  "; media-src 'self' blob: mediastream: https://*.whatsapp.net";
+            // Handle arrays - Electron might provide header values as arrays
+            if (Array.isArray(cspValue)) {
+              responseHeaders[header] = cspValue.map((value) => {
+                if (
+                  typeof value === "string" &&
+                  !value.includes("media-src blob:")
+                ) {
+                  if (value.includes("media-src")) {
+                    return value.replace(
+                      /media-src\s+([^;]+)/gi,
+                      "media-src $1 blob: mediastream:"
+                    );
+                  } else {
+                    return (
+                      value +
+                      "; media-src 'self' blob: mediastream: https://*.whatsapp.net"
+                    );
+                  }
+                }
+                return value;
+              });
+            }
+            // Handle string values
+            else if (typeof cspValue === "string") {
+              if (!cspValue.includes("media-src blob:")) {
+                if (cspValue.includes("media-src")) {
+                  cspValue = cspValue.replace(
+                    /media-src\s+([^;]+)/gi,
+                    "media-src $1 blob: mediastream:"
+                  );
+                } else {
+                  cspValue +=
+                    "; media-src 'self' blob: mediastream: https://*.whatsapp.net";
+                }
+                responseHeaders[header] = cspValue;
               }
-
-              responseHeaders[header] = cspValue;
+            }
+            // Log if the value is neither a string nor an array
+            else {
+              log.warn(
+                `Unexpected CSP header type for ${header}: ${typeof cspValue}`
+              );
             }
           });
 
