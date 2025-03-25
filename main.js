@@ -284,6 +284,10 @@ function createWindow() {
         nodeIntegration: false, // For security reasons
         contextIsolation: true,
         preload: preloadPath,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+        webviewTag: false,
+        enableWebSQL: false,
       },
       icon: iconPath,
       show: false, // Don't show until ready
@@ -294,9 +298,31 @@ function createWindow() {
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     mainWindow.webContents.setUserAgent(userAgent);
 
+    // Enable more detailed error logging
+    mainWindow.webContents.on(
+      "did-fail-request",
+      (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        log.error(
+          `Network request failed: ${validatedURL} - Error ${errorCode}: ${errorDescription}`
+        );
+      }
+    );
+
+    // Add detailed navigation logging
+    mainWindow.webContents.on("will-navigate", (event, url) => {
+      log.info(`Navigating to: ${url}`);
+    });
+
+    mainWindow.webContents.on("did-navigate", (event, url) => {
+      log.info(`Navigated to: ${url}`);
+    });
+
     // Load WhatsApp Web
     log.info("Loading WhatsApp Web URL");
-    mainWindow.loadURL("https://web.whatsapp.com/");
+    mainWindow.loadURL("https://web.whatsapp.com/", {
+      userAgent: userAgent,
+      extraHeaders: "pragma: no-cache\n",
+    });
 
     // Open DevTools in development or inspection mode
     if (config.AUTO_OPEN_DEVTOOLS) {
@@ -419,6 +445,77 @@ function createWindow() {
         else log.info(`[Renderer] ${message}`);
       }
     );
+
+    // Set permission handling for media devices (camera, mic)
+    session.defaultSession.setPermissionRequestHandler(
+      (webContents, permission, callback) => {
+        const url = webContents.getURL();
+
+        // Log permission requests
+        log.info(`Permission requested: ${permission} for ${url}`);
+
+        // Allow camera and microphone for WhatsApp Web
+        if (
+          url.startsWith("https://web.whatsapp.com") &&
+          (permission === "media" ||
+            permission === "camera" ||
+            permission === "microphone")
+        ) {
+          log.info(`Allowing ${permission} permission for WhatsApp Web`);
+          return callback(true);
+        }
+
+        // Deny other permission requests
+        log.info(`Denying ${permission} permission for ${url}`);
+        callback(false);
+      }
+    );
+
+    // Modify Content-Security-Policy headers to ensure QR code works
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      if (details.url.startsWith("https://web.whatsapp.com")) {
+        const responseHeaders = details.responseHeaders;
+
+        // Log CSP headers for debugging
+        const cspHeaders = Object.keys(responseHeaders).filter(
+          (header) => header.toLowerCase() === "content-security-policy"
+        );
+
+        if (cspHeaders.length > 0) {
+          log.info(
+            `Original CSP headers for ${details.url}:`,
+            cspHeaders.map((h) => `${h}: ${responseHeaders[h]}`).join("\n")
+          );
+
+          // Modify CSP headers to allow camera access
+          cspHeaders.forEach((header) => {
+            let cspValue = responseHeaders[header];
+
+            // Add or update media-src to allow blob URLs needed for QR code
+            if (!cspValue.includes("media-src blob:")) {
+              cspValue = cspValue.replace(
+                /media-src\s+([^;]+)/gi,
+                "media-src $1 blob: mediastream:"
+              );
+
+              if (!cspValue.includes("media-src")) {
+                cspValue +=
+                  "; media-src 'self' blob: mediastream: https://*.whatsapp.net";
+              }
+
+              responseHeaders[header] = cspValue;
+            }
+          });
+
+          log.info(
+            `Modified CSP headers:`,
+            cspHeaders.map((h) => `${h}: ${responseHeaders[h]}`).join("\n")
+          );
+        }
+      }
+
+      callback({ responseHeaders: details.responseHeaders });
+    });
   } catch (error) {
     log.error("Error creating main window:", error);
     dialog.showErrorBox(
@@ -490,6 +587,15 @@ function createApplicationMenu() {
           label: "Check for Updates",
           click: () => autoUpdater.checkForUpdates(),
         },
+        {
+          label: "Toggle Developer Tools",
+          accelerator: "CmdOrCtrl+J",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.toggleDevTools();
+            }
+          },
+        },
         { type: "separator" },
         {
           label: "About",
@@ -557,6 +663,20 @@ app.whenReady().then(() => {
   try {
     // Create splash window
     createSplashWindow(); // Show splash screen instead of directly creating main window
+
+    // Register global keyboard shortcut for developer tools
+    const { globalShortcut } = require("electron");
+    globalShortcut.register("CommandOrControl+J", () => {
+      if (mainWindow) {
+        log.info("Developer tools toggled via keyboard shortcut");
+        mainWindow.webContents.toggleDevTools();
+      }
+    });
+
+    app.on("will-quit", () => {
+      // Unregister the shortcut when the app is about to quit
+      globalShortcut.unregisterAll();
+    });
 
     app.on("activate", function () {
       log.info("App activated");
