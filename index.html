@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animated Prompt Box</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+        font-family: Arial, sans-serif;
+      }
+
+      .container {
+        position: relative;
+        width: 80%;
+        max-width: 700px;
+      }
+
+      .text-area-wrapper {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+        border-radius: 25px;
+      }
+
+      .animated-border {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 25px;
+        background: linear-gradient(90deg, #ff00cc, #3333ff, #ff00cc);
+        background-size: 200% 200%;
+        animation: borderGlow 3s linear infinite;
+        z-index: 1;
+      }
+
+      .glass-effect {
+        position: relative;
+        z-index: 2;
+        margin: 3px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+      }
+
+      .textarea {
+        width: 100%;
+        height: 200px;
+        padding: 20px;
+        border: none;
+        outline: none;
+        background: #ffffffba;
+        font-size: 16px;
+        color: #333;
+        box-sizing: border-box;
+        resize: none;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+          sans-serif;
+        font-weight: 500;
+        line-height: 1.5;
+      }
+
+      .submit-btn {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        z-index: 3;
+        background: linear-gradient(135deg, #ff00cc, #3333ff);
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s ease;
+      }
+
+      .submit-btn:hover {
+        transform: scale(1.1);
+      }
+
+      .submit-btn i {
+        color: white;
+        font-size: 20px;
+      }
+
+      @keyframes borderGlow {
+        0% {
+          background-position: 0% 50%;
+        }
+        100% {
+          background-position: 200% 50%;
+        }
+      }
+
+      @keyframes typing {
+        from {
+          width: 0;
+        }
+        to {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="text-area-wrapper">
+        <div class="animated-border"></div>
+        <div class="glass-effect">
+          <textarea
+            id="prompt-text"
+            class="textarea"
+            placeholder="ask anything"
+          ></textarea>
+        </div>
+        <button class="submit-btn">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const textArea = document.getElementById("prompt-text");
+        const defaultText =
+          "Create an image of a young male and an African-American female. They are both wearing a hoodie. The young male is wearing a blue hoodie and the female is wearing a black hoodie. On the hoodie, it's written Crown YouTube as a logo. They are both striking an action pose. The lady has her hand folded. The male has one hand lifted up. It's the golden hour down in the empty streets of Times Square. A very cinematic shot.";
+
+        // Clear placeholder when animation starts
+        setTimeout(() => {
+          textArea.placeholder = "";
+          animateTyping(defaultText, 0);
+        }, 1500);
+
+        function animateTyping(text, index) {
+          if (index < text.length) {
+            textArea.value += text.charAt(index);
+            index++;
+            setTimeout(() => animateTyping(text, index), 30);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

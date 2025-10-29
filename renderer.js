@@ -53,6 +53,9 @@
   let mainContainer = null;
   let currentChat = null;
   let lastProcessedMessages = new Set(); // Track already processed messages
+  let messagePollingInterval = null; // Interval for polling messages
+  let acknowledgedAlertMessages = new Set(); // Track alert messages that user has acknowledged (pressed 'S')
+  let flashOnAllNewMessages = false; // Setting: Flash on all new messages, not just alert emojis
 
   // Function to handle the 'S' key press to stop flashing
   function handleKeyPress(e) {
@@ -296,6 +299,21 @@
   function initialize() {
     console.log("WhatsApp Presentation Mode: Initializing...");
 
+    // Load saved preference for flashing on all new messages
+    try {
+      const savedPreference = localStorage.getItem("flashOnAllNewMessages");
+      if (savedPreference !== null) {
+        flashOnAllNewMessages = savedPreference === "true";
+        window.electronAPI.logInfo(
+          `Loaded flash preference: ${
+            flashOnAllNewMessages ? "ENABLED" : "DISABLED"
+          }`
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load flash preference:", err);
+    }
+
     // Setup update notification
     setupUpdateNotification();
 
@@ -323,6 +341,13 @@
   function addCustomHeader() {
     // Check if header already exists
     if (document.getElementById("whatsapp-command-header")) {
+      // If it exists, update the checkbox state to match the current setting
+      const existingCheckbox = document.getElementById(
+        "flash-all-new-messages-checkbox"
+      );
+      if (existingCheckbox) {
+        existingCheckbox.checked = flashOnAllNewMessages;
+      }
       return;
     }
 
@@ -378,6 +403,56 @@
     `;
     presentButton.addEventListener("click", togglePresentationMode);
     controls.appendChild(presentButton);
+
+    // Create checkbox for "Flash on All New Messages"
+    const flashAllContainer = document.createElement("label");
+    flashAllContainer.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      user-select: none;
+    `;
+    flashAllContainer.title =
+      "Flash red on any new message (not just alert emojis)";
+
+    const flashAllCheckbox = document.createElement("input");
+    flashAllCheckbox.type = "checkbox";
+    flashAllCheckbox.id = "flash-all-new-messages-checkbox";
+    flashAllCheckbox.checked = flashOnAllNewMessages;
+    flashAllCheckbox.style.cssText = `
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
+    `;
+    flashAllCheckbox.addEventListener("change", (e) => {
+      flashOnAllNewMessages = e.target.checked;
+      // Save to localStorage
+      try {
+        localStorage.setItem(
+          "flashOnAllNewMessages",
+          flashOnAllNewMessages.toString()
+        );
+        window.electronAPI.logInfo(
+          `Flash on all new messages: ${
+            flashOnAllNewMessages ? "ENABLED" : "DISABLED"
+          }`
+        );
+      } catch (err) {
+        console.error("Failed to save flash preference:", err);
+      }
+    });
+
+    const flashAllLabel = document.createElement("span");
+    flashAllLabel.textContent = "Flash All New Messages";
+    flashAllLabel.style.cssText = `
+      color: white;
+    `;
+
+    flashAllContainer.appendChild(flashAllCheckbox);
+    flashAllContainer.appendChild(flashAllLabel);
+    controls.appendChild(flashAllContainer);
 
     // Add inspection button if inspection mode is enabled
     if (config.INSPECTION_MODE) {
@@ -793,6 +868,15 @@
     // Stop any flashing
     stopFlashing();
 
+    // Clear acknowledged alert messages when exiting presentation mode
+    // This allows the same messages to trigger alerts again if user re-enters presentation mode
+    acknowledgedAlertMessages.clear();
+    window.electronAPI.logInfo("Cleared acknowledged alert messages on exit");
+
+    // Note: We DON'T clear the polling interval here because we want to keep
+    // monitoring for alert emoji reactions even when not in presentation mode
+    // This allows the app to flash red when the alert emoji is detected
+
     isInPresentationMode = false;
     currentChat = null;
   }
@@ -916,10 +1000,33 @@
     }
   }
 
+  // Diagnostic function to understand the DOM structure
+  function diagnoseDOMStructure() {
+    const diagnostics = {
+      hasMain: !!document.querySelector("#main"),
+      hasRoleApplication: !!document.querySelector('[role="application"]'),
+      messageRowCount: document.querySelectorAll('[role="row"]').length,
+      hasConversationPanel: !!document.querySelector(
+        '[data-testid="conversation-panel-messages"]'
+      ),
+      hasCopyableArea: !!document.querySelector(".copyable-area"),
+      hasAmjvElements: document.querySelectorAll("._amjv").length,
+    };
+
+    window.electronAPI.logInfo(
+      `DOM Diagnostics: ${JSON.stringify(diagnostics, null, 2)}`
+    );
+
+    return diagnostics;
+  }
+
   // Start monitoring for new messages
   function startMessageMonitoring() {
     // Log what we're looking for to help with debugging
     window.electronAPI.logInfo("Starting message monitoring");
+
+    // Run diagnostics to understand the DOM
+    diagnoseDOMStructure();
 
     // Create a mutation observer to watch for new messages
     const messageObserver = new MutationObserver((mutations) => {
@@ -977,14 +1084,46 @@
     });
 
     // Monitor the conversation panel for changes (container of all messages)
-    const messageContainer =
-      document.querySelector('[data-testid="conversation-panel-messages"]') ||
-      document.querySelector(".message-list") ||
-      document.querySelector('[role="application"]');
+    // Try multiple selectors based on current WhatsApp Web DOM structure
+    let messageContainer = document.querySelector(
+      '[data-testid="conversation-panel-messages"]'
+    );
+
+    if (!messageContainer) {
+      // Try finding by the main container that holds all messages
+      messageContainer = document.querySelector('#main [role="application"]');
+    }
+
+    if (!messageContainer) {
+      // Try finding the parent of message rows
+      const firstMessageRow = document.querySelector('[role="row"]');
+      if (firstMessageRow) {
+        messageContainer = firstMessageRow.parentElement;
+        window.electronAPI.logInfo(
+          "Found message container by walking up from role='row'"
+        );
+      }
+    }
+
+    if (!messageContainer) {
+      // Try the copyable-area which contains messages
+      messageContainer = document.querySelector(".copyable-area");
+    }
+
+    if (!messageContainer) {
+      // Last resort - find any element that contains multiple role="row" elements
+      const allRows = document.querySelectorAll('[role="row"]');
+      if (allRows.length > 0) {
+        messageContainer = allRows[0].parentElement;
+        window.electronAPI.logInfo(
+          `Found message container as parent of ${allRows.length} message rows`
+        );
+      }
+    }
 
     if (messageContainer) {
       window.electronAPI.logInfo(
-        "Message container found, observing for changes"
+        `Message container found! Tag: ${messageContainer.tagName}, Classes: ${messageContainer.className}, ID: ${messageContainer.id}`
       );
       messageObserver.observe(messageContainer, {
         childList: true,
@@ -992,6 +1131,34 @@
         attributes: true,
         characterData: true,
       });
+
+      // IMPORTANT FIX: Add polling as a fallback mechanism
+      // WhatsApp Web may not trigger mutations consistently, so we poll every 2 seconds
+      if (!messagePollingInterval) {
+        window.electronAPI.logInfo(
+          "Starting polling interval for message monitoring (every 2 seconds)"
+        );
+
+        let pollCount = 0;
+        messagePollingInterval = setInterval(() => {
+          pollCount++;
+
+          // Log polling activity every 10 polls (every 20 seconds) for debugging
+          if (config.INSPECTION_MODE && pollCount % 10 === 0) {
+            window.electronAPI.logInfo(
+              `Polling check #${pollCount} - In presentation mode: ${isInPresentationMode}`
+            );
+          }
+
+          // Always check for alert emoji reactions
+          checkForAlertEmoji();
+
+          // Update presentation messages if in presentation mode
+          if (isInPresentationMode) {
+            updatePresentationMessages();
+          }
+        }, 2000); // Poll every 2 seconds
+      }
     } else {
       window.electronAPI.logInfo(
         "No message container found, will try again soon"
@@ -1003,9 +1170,35 @@
 
   // Get all message elements based on the provided HTML structure
   function getMessageElements() {
-    // Try to get messages using the updated classes from the provided HTML
+    // First, try to find message rows (the most reliable approach from the DOM)
+    // Each message is in a div with role="row" and contains a ._amjv element
+    let messageRows = document.querySelectorAll('[role="row"]');
+
+    if (messageRows.length > 0) {
+      // Filter to only actual message rows (not system messages like "TODAY")
+      messageRows = Array.from(messageRows).filter((row) => {
+        // Check if this row contains an actual message
+        const hasMessageContent =
+          row.querySelector("._amjv") !== null ||
+          row.querySelector("._amk4") !== null ||
+          row.querySelector("[data-id]") !== null;
+        return hasMessageContent;
+      });
+
+      if (messageRows.length > 0) {
+        // Log for debugging in inspection mode
+        if (config.INSPECTION_MODE) {
+          window.electronAPI.logInfo(
+            `Found ${messageRows.length} message rows using role="row" selector`
+          );
+        }
+        return messageRows;
+      }
+    }
+
+    // Fallback: Try to get messages using the message container classes
     let messageElements = document.querySelectorAll(
-      "._amk4._amkd._amk5, ._amk4"
+      "._amjv, ._amk4._amkd._amk5, ._amk4"
     );
 
     // If no messages found, try alternative selectors
@@ -1017,7 +1210,15 @@
 
     // Last resort fallbacks
     if (messageElements.length === 0) {
-      messageElements = document.querySelectorAll('.message, [role="row"]');
+      messageElements = document.querySelectorAll(
+        ".message, .message-in, .message-out"
+      );
+    }
+
+    if (config.INSPECTION_MODE && messageElements.length === 0) {
+      window.electronAPI.logInfo(
+        "WARNING: No message elements found with any selector!"
+      );
     }
 
     return messageElements;
@@ -1109,20 +1310,67 @@
 
     // Method 1: Find by reaction buttons using updated selectors from provided HTML
     const reactionButtons = document.querySelectorAll(
-      'button[aria-label^="reaction"], button.xd7y6wv[aria-haspopup="true"][aria-label^="reaction"]'
+      'button[aria-label^="reaction"], button[aria-haspopup="true"][aria-label^="reaction"], button.xo0jvv6[aria-label^="reaction"]'
     );
 
+    // Log how many reaction buttons we found (only in inspection mode to avoid spam)
+    if (config.INSPECTION_MODE && reactionButtons.length > 0) {
+      window.electronAPI.logInfo(
+        `Found ${reactionButtons.length} reaction buttons`
+      );
+    }
+
     // Check each reaction for the alert emoji
+    let foundAlertEmoji = false;
+    let foundNewAlertEmoji = false;
+
     reactionButtons.forEach((button) => {
       const ariaLabel = button.getAttribute("aria-label");
       if (ariaLabel && ariaLabel.includes(ALERT_EMOJI)) {
-        // If we're in presentation mode, start flashing
-        if (isInPresentationMode && !isFlashing) {
-          startFlashing();
+        foundAlertEmoji = true;
+
+        // Walk up to find the message ID to check if it's already acknowledged
+        const messageRow = button.closest('[role="row"]');
+        let msgId = null;
+
+        if (messageRow) {
+          const messageContainer = messageRow.querySelector("[data-id]");
+          if (messageContainer) {
+            msgId = messageContainer.getAttribute("data-id");
+          }
+        }
+
+        // Check if this alert has already been acknowledged
+        const isAcknowledged = msgId && acknowledgedAlertMessages.has(msgId);
+
+        if (!isAcknowledged) {
+          foundNewAlertEmoji = true;
+
+          // Log when we find a NEW (unacknowledged) alert emoji
+          window.electronAPI.logInfo(
+            `🚨 NEW ALERT EMOJI DETECTED! Message ID: ${
+              msgId || "unknown"
+            }, In presentation mode: ${isInPresentationMode}, Already flashing: ${isFlashing}`
+          );
+
+          // If we're in presentation mode, start flashing (only for new alerts)
+          if (isInPresentationMode && !isFlashing) {
+            window.electronAPI.logInfo(
+              "Starting flashing animation for new alert"
+            );
+            startFlashing();
+          }
+        } else {
+          // This alert was already acknowledged
+          if (config.INSPECTION_MODE) {
+            window.electronAPI.logInfo(
+              `Alert emoji found but already acknowledged (ID: ${msgId})`
+            );
+          }
         }
 
         // For popup functionality - walk up to find the message container
-        if (config.PRESENTATION.POPUP_ALERT_MESSAGES) {
+        if (config.PRESENTATION.POPUP_ALERT_MESSAGES && !isAcknowledged) {
           // First, try to find the container by walking up to the role="row" element
           let messageRow = button.closest('[role="row"]');
           if (!messageRow) {
@@ -1227,6 +1475,17 @@
       );
       updatePresentationMessages(messagesWithAlertEmoji);
     }
+
+    // Log completion of check (only in inspection mode to avoid spam)
+    if (config.INSPECTION_MODE) {
+      window.electronAPI.logInfo(
+        `Finished checking for alert emoji. Found total: ${
+          foundAlertEmoji ? "YES" : "NO"
+        }, New unacknowledged: ${foundNewAlertEmoji ? "YES" : "NO"}, Checked ${
+          reactionButtons.length
+        } reaction buttons, ${acknowledgedAlertMessages.size} acknowledged`
+      );
+    }
   }
 
   // Start the flashing alert
@@ -1276,6 +1535,36 @@
     if (container) {
       container.style.backgroundColor = "#1f2c34";
     }
+
+    // Mark all current alert emoji messages as acknowledged
+    // This prevents re-flashing for the same alert emojis
+    const reactionButtons = document.querySelectorAll(
+      'button[aria-label^="reaction"], button[aria-haspopup="true"][aria-label^="reaction"], button.xo0jvv6[aria-label^="reaction"]'
+    );
+
+    reactionButtons.forEach((button) => {
+      const ariaLabel = button.getAttribute("aria-label");
+      if (ariaLabel && ariaLabel.includes(ALERT_EMOJI)) {
+        // Walk up to find the message container and get its ID
+        const messageRow = button.closest('[role="row"]');
+        if (messageRow) {
+          const messageContainer = messageRow.querySelector("[data-id]");
+          if (messageContainer) {
+            const msgId = messageContainer.getAttribute("data-id");
+            if (msgId) {
+              acknowledgedAlertMessages.add(msgId);
+              window.electronAPI.logInfo(
+                `Acknowledged alert message ID: ${msgId}`
+              );
+            }
+          }
+        }
+      }
+    });
+
+    window.electronAPI.logInfo(
+      `Flashing stopped. ${acknowledgedAlertMessages.size} alert messages acknowledged.`
+    );
   }
 
   // Update presentation messages with the most recent messages
@@ -1319,8 +1608,37 @@
       // If this message wasn't in our last set, it's new
       if (!lastProcessedMessages.has(fingerprint)) {
         hasNewMessages = true;
+        // Always log new messages
+        window.electronAPI.logInfo(
+          `🆕 NEW MESSAGE DETECTED! Text: "${msgText.substring(
+            0,
+            50
+          )}", Timestamp: "${timestamp}"`
+        );
       }
     });
+
+    // If we detected truly new messages, clear acknowledged alerts
+    // This allows alert emojis on new messages to trigger flashing again
+    if (hasNewMessages && acknowledgedAlertMessages.size > 0) {
+      window.electronAPI.logInfo(
+        `New message detected - clearing ${acknowledgedAlertMessages.size} acknowledged alert messages`
+      );
+      acknowledgedAlertMessages.clear();
+    }
+
+    // If "Flash on All New Messages" is enabled, start flashing for any new message
+    if (
+      hasNewMessages &&
+      flashOnAllNewMessages &&
+      isInPresentationMode &&
+      !isFlashing
+    ) {
+      window.electronAPI.logInfo(
+        "💥 Flashing triggered by new message (Flash All New Messages enabled)"
+      );
+      startFlashing();
+    }
 
     // If no new messages and we're not forcing an update due to alert messages,
     // then we can skip the update
@@ -1329,14 +1647,21 @@
       alertMessages.size === 0 &&
       lastProcessedMessages.size > 0
     ) {
+      // Only log in inspection mode to avoid spam
+      if (config.INSPECTION_MODE) {
+        window.electronAPI.logInfo(
+          "Skipping update - no new messages and no alert messages"
+        );
+      }
       return;
     }
 
     // Update our tracking set for next time
     lastProcessedMessages = currentMessageIds;
 
+    // Log when we're actually updating the presentation
     window.electronAPI.logInfo(
-      `Found ${recentMessages.length} message elements, new messages: ${hasNewMessages}`
+      `📺 UPDATING PRESENTATION: ${recentMessages.length} messages (${messageElements.length} total in DOM), new: ${hasNewMessages}`
     );
 
     // Log alert messages for debugging if in inspection mode

@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-control-center",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Enhanced WhatsApp Web interface for control rooms and productions",
   "main": "main.js",
   "homepage": "https://github.com/crownemmanuel/whatsapp-command-center",
@@ -28,7 +28,7 @@
     "electron-updater": "^6.1.7"
   },
   "build": {
-    "appId": "com.command.whatsapp",
+    "appId": "com.commandcenter.whatsapp",
     "productName": "WhatsApp Command Center",
     "icon": "icons/icons/png/1024x1024.png",
     "files": [
