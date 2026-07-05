@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-command-center",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "Big-screen WhatsApp command center dashboard",
   "keywords": [
