@@ -32,6 +32,10 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",
+    "desktop:prepare": "node scripts/prepare-tauri-sidecar.js",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "desktop:check": "npm run desktop:prepare && cargo check --manifest-path src-tauri/Cargo.toml",
     "check": "node --check src/*.js",
     "prepublishOnly": "npm run check"
   },
@@ -44,5 +48,8 @@
     "pino": "^10.1.0",
     "qrcode": "^1.5.4",
     "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
   }
 }

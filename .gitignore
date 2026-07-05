@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .worktrees/
+.cache/
 
 # Runtime / user data
 baileys-auth/
@@ -24,3 +25,7 @@ wa-qr.png
 coverage/
 dist/
 build/
+src-tauri/binaries/
+src-tauri/gen/
+src-tauri/resources/
+src-tauri/target/

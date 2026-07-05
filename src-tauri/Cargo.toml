@@ -1,0 +1,19 @@
+[package]
+name = "whatsapp-command-center-desktop"
+version = "0.1.1"
+description = "Desktop shell for WhatsApp Command Center"
+authors = ["WhatsApp Command Center"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77"
+default-run = "whatsapp-command-center-desktop"
+
+[build-dependencies]
+tauri-build = { version = "2.5.1", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.9.3", features = [] }
+tauri-plugin-opener = "2.5.0"
+tauri-plugin-shell = "2.3.1"
