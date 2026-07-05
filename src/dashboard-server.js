@@ -9,9 +9,15 @@ export function createDashboardServer({
   port,
   host = "0.0.0.0",
   mediaDir,
+  qrPath = "",
   getState,
+  getDesktopStatus = () => ({ onboardingRequired: false, setupPhase: "ready" }),
   onUpdateSettings,
   onUnlockGroups,
+  onRefreshGroups = null,
+  onCompleteOnboarding = null,
+  onRescan = null,
+  onLogout = null,
 }) {
   const clients = new Set()
 
@@ -36,12 +42,110 @@ export function createDashboardServer({
       return
     }
 
+    if (req.method === "GET" && url.pathname === "/onboarding") {
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      })
+      res.end(renderOnboardingHtml())
+      return
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/desktop/status") {
+      sendJson(res, 200, {
+        ...getDesktopStatus(),
+        state: getState(),
+      })
+      return
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/setup/qr.png") {
+      if (!qrPath) {
+        res.writeHead(404, { "Content-Type": "text/plain", "Cache-Control": "no-store" })
+        res.end("Not found")
+        return
+      }
+      try {
+        const buf = await fs.readFile(qrPath)
+        res.writeHead(200, {
+          "Content-Type": "image/png",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        })
+        res.end(buf)
+      } catch (err) {
+        if (err?.code === "ENOENT") {
+          res.writeHead(404, { "Content-Type": "text/plain", "Cache-Control": "no-store" })
+          res.end("Not found")
+        } else {
+          res.writeHead(500, { "Content-Type": "text/plain", "Cache-Control": "no-store" })
+          res.end("Error")
+        }
+      }
+      return
+    }
+
     if (req.method === "GET" && url.pathname === "/api/state") {
       res.writeHead(200, {
         "Content-Type": "application/json",
         "Cache-Control": "no-store, no-cache, must-revalidate",
       })
       res.end(JSON.stringify(getState()))
+      return
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/groups/refresh") {
+      if (!onRefreshGroups) {
+        sendJson(res, 501, { error: "Group refresh is not available." })
+        return
+      }
+      try {
+        const result = await onRefreshGroups(await readJsonBody(req))
+        sendJson(res, 200, result)
+      } catch (error) {
+        sendJson(res, error?.statusCode || 400, { error: errorMessage(error) })
+      }
+      return
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/onboarding/groups") {
+      if (!onCompleteOnboarding) {
+        sendJson(res, 501, { error: "Onboarding is not available." })
+        return
+      }
+      try {
+        const result = await onCompleteOnboarding(await readJsonBody(req))
+        sendJson(res, 200, result)
+      } catch (error) {
+        sendJson(res, error?.statusCode || 400, { error: errorMessage(error) })
+      }
+      return
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/desktop/rescan") {
+      if (!onRescan) {
+        sendJson(res, 501, { error: "Rescan is not available." })
+        return
+      }
+      try {
+        const result = await onRescan(await readJsonBody(req))
+        sendJson(res, 200, result)
+      } catch (error) {
+        sendJson(res, error?.statusCode || 400, { error: errorMessage(error) })
+      }
+      return
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/desktop/logout") {
+      if (!onLogout) {
+        sendJson(res, 501, { error: "Logout is not available." })
+        return
+      }
+      try {
+        const result = await onLogout(await readJsonBody(req))
+        sendJson(res, 200, result)
+      } catch (error) {
+        sendJson(res, error?.statusCode || 400, { error: errorMessage(error) })
+      }
       return
     }
 
@@ -226,6 +330,24 @@ function readBody(req) {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")))
     req.on("error", reject)
   })
+}
+
+async function readJsonBody(req) {
+  const raw = await readBody(req)
+  if (!raw) return {}
+  return JSON.parse(raw)
+}
+
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+  })
+  res.end(JSON.stringify(payload))
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function renderDashboardHtml() {
@@ -619,6 +741,310 @@ function renderDashboardHtml() {
     }
 
     init();
+  </script>
+</body>
+</html>`
+}
+
+function renderOnboardingHtml() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Setup - WhatsApp Command Center</title>
+  <style>
+    :root {
+      --bg: #101312;
+      --panel: #191d1b;
+      --panel-2: #111614;
+      --line: #2c3832;
+      --text: #f2f6f3;
+      --muted: #9aa8a0;
+      --accent: #23d366;
+      --warn: #f2c14e;
+      --danger: #d84f5f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #101312 0%, #17221c 48%, #0a0d0c 100%);
+      color: var(--text);
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+    }
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr);
+      gap: 16px;
+      padding: 16px;
+    }
+    .panel {
+      background: rgba(25,29,27,0.92);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      min-width: 0;
+    }
+    .qr-panel {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+    h1, h2 { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 1.45rem; }
+    h2 { font-size: 1rem; color: var(--muted); font-weight: 650; }
+    .status {
+      display: inline-flex;
+      width: fit-content;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: .86rem;
+    }
+    .status.ready { color: #06120b; background: var(--accent); border-color: var(--accent); }
+    .qr-wrap {
+      display: grid;
+      place-items: center;
+      min-height: 300px;
+      border: 1px dashed #456056;
+      background: #eef5ef;
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .qr-wrap img {
+      width: min(280px, 76vw);
+      height: auto;
+      image-rendering: pixelated;
+    }
+    .muted { color: var(--muted); }
+    .actions, .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    button, a.btn, input[type="search"] {
+      border-radius: 8px;
+      border: 1px solid #3b4a44;
+      background: #121715;
+      color: var(--text);
+      padding: 9px 11px;
+      font-size: .95rem;
+    }
+    button, a.btn {
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #06120b; }
+    button.danger { border-color: #7b2833; background: #351217; color: #ffd7dd; }
+    input[type="search"] { width: 100%; }
+    .groups {
+      display: grid;
+      gap: 10px;
+      max-height: calc(100vh - 210px);
+      overflow: auto;
+      padding-right: 2px;
+    }
+    .group-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+      background: rgba(17,22,20,0.82);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .group-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .empty {
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    #message { min-height: 1.4em; color: var(--warn); }
+    @media (max-width: 760px) {
+      .shell { grid-template-columns: 1fr; }
+      .groups { max-height: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="panel qr-panel">
+      <div>
+        <h1>Scan WhatsApp QR</h1>
+        <div class="muted">Use WhatsApp Linked devices, then choose which groups appear on the display.</div>
+      </div>
+      <div id="phase" class="status">Starting</div>
+      <div class="qr-wrap">
+        <img id="qr" alt="WhatsApp QR code" src="/api/setup/qr.png">
+      </div>
+      <div class="actions">
+        <button id="rescan" class="danger" type="button">Logout and rescan</button>
+        <a class="btn" href="/">Open display</a>
+      </div>
+      <div id="message"></div>
+    </section>
+
+    <section class="panel">
+      <div class="row" style="justify-content:space-between; margin-bottom: 12px;">
+        <div>
+          <h2>Groups</h2>
+          <div id="group-count" class="muted">No groups loaded</div>
+        </div>
+        <button id="refresh" type="button">Refresh groups</button>
+      </div>
+      <input id="search" type="search" placeholder="Search groups by name">
+      <div id="groups" class="groups" style="margin-top: 10px;"></div>
+      <div class="actions" style="margin-top: 12px;">
+        <button id="save" class="primary" type="button">Save selected groups</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const phaseEl = document.getElementById('phase');
+    const qrEl = document.getElementById('qr');
+    const messageEl = document.getElementById('message');
+    const groupsEl = document.getElementById('groups');
+    const groupCountEl = document.getElementById('group-count');
+    const searchEl = document.getElementById('search');
+    const refreshBtn = document.getElementById('refresh');
+    const saveBtn = document.getElementById('save');
+    const rescanBtn = document.getElementById('rescan');
+
+    let knownGroups = [];
+    let selectedIds = new Set();
+
+    function setMessage(value) {
+      messageEl.textContent = value || '';
+    }
+
+    function setPhase(value) {
+      const label = String(value || 'starting').replaceAll('_', ' ');
+      phaseEl.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+      phaseEl.classList.toggle('ready', value === 'ready' || value === 'connected');
+    }
+
+    function renderGroups() {
+      const term = searchEl.value.trim().toLowerCase();
+      const filtered = knownGroups.filter((group) =>
+        String(group.name || group.id).toLowerCase().includes(term)
+      );
+      groupCountEl.textContent = knownGroups.length
+        ? String(selectedIds.size) + ' selected from ' + String(knownGroups.length)
+        : 'No groups loaded';
+      if (!filtered.length) {
+        groupsEl.innerHTML = '<div class="empty">No groups found. Scan the QR, then refresh groups.</div>';
+        return;
+      }
+      groupsEl.innerHTML = filtered.map((group) => {
+        const checked = selectedIds.has(group.id) ? 'checked' : '';
+        return '<label class="group-row">'
+          + '<input type="checkbox" data-id="' + escapeAttr(group.id) + '" ' + checked + '>'
+          + '<span>' + escapeHtml(group.name || group.id) + '</span>'
+          + '</label>';
+      }).join('');
+    }
+
+    async function loadStatus() {
+      const status = await fetch('/api/desktop/status').then((r) => r.json());
+      setPhase(status.setupPhase);
+      const state = status.state || {};
+      knownGroups = mergeGroups(state.knownGroups || [], state.watchedGroups || []);
+      selectedIds = new Set((state.watchedGroups || []).map((group) => group.id));
+      renderGroups();
+    }
+
+    async function refreshGroups() {
+      setMessage('Refreshing groups...');
+      const res = await fetch('/api/groups/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(body.error || 'Could not refresh groups.');
+        return;
+      }
+      knownGroups = mergeGroups(body.knownGroups || [], body.watchedGroups || []);
+      setMessage('Groups refreshed.');
+      renderGroups();
+    }
+
+    async function saveGroups() {
+      const watchedGroups = knownGroups.filter((group) => selectedIds.has(group.id));
+      const res = await fetch('/api/onboarding/groups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ watchedGroups }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(body.error || 'Could not save groups.');
+        return;
+      }
+      setMessage('Groups saved. Opening display...');
+      setTimeout(() => { location.href = '/'; }, 400);
+    }
+
+    async function rescan() {
+      setMessage('Starting a fresh QR...');
+      const res = await fetch('/api/desktop/rescan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(body.error || 'Could not start rescan.');
+        return;
+      }
+      setPhase(body.setupPhase || 'waiting_for_qr');
+      qrEl.src = '/api/setup/qr.png?ts=' + Date.now();
+    }
+
+    groupsEl.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!target || target.type !== 'checkbox') return;
+      const id = target.getAttribute('data-id');
+      if (!id) return;
+      if (target.checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+      renderGroups();
+    });
+
+    searchEl.addEventListener('input', renderGroups);
+    refreshBtn.onclick = refreshGroups;
+    saveBtn.onclick = saveGroups;
+    rescanBtn.onclick = rescan;
+
+    function mergeGroups(a, b) {
+      const byId = new Map();
+      [a, b].forEach((list) => {
+        (Array.isArray(list) ? list : []).forEach((group) => {
+          const id = String(group && group.id || '').trim();
+          if (!id) return;
+          const name = String(group && group.name || '').trim();
+          if (!byId.has(id)) byId.set(id, { id, name: name || id });
+          else if (name && byId.get(id).name === id) byId.set(id, { id, name });
+        });
+      });
+      return Array.from(byId.values()).sort((x, y) => x.name.localeCompare(y.name));
+    }
+
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = String(value || '');
+      return div.innerHTML;
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/"/g, '&quot;');
+    }
+
+    loadStatus().catch((error) => setMessage(error.message || String(error)));
   </script>
 </body>
 </html>`
