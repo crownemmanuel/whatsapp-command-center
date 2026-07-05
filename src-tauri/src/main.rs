@@ -85,7 +85,7 @@ fn start_backend(app: AppHandle) -> Result<(), String> {
 
     let backend_entry = app
         .path()
-        .resolve("backend/src/desktop-sidecar.js", BaseDirectory::Resource)
+        .resolve("resources/backend/src/desktop-sidecar.js", BaseDirectory::Resource)
         .map_err(|error| format!("Could not resolve bundled backend: {error}"))?;
 
     let (mut rx, child) = app

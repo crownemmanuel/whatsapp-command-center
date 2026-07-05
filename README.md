@@ -34,6 +34,42 @@ npm start -- --rescan
 
 Or with the global command: `whatsappCC --rescan`. This clears the WhatsApp session and runs setup again so you can scan a fresh QR and pick groups.
 
+## Desktop app
+
+The Tauri desktop app launches the command center without a terminal. It starts a bundled Node runtime sidecar, stores desktop data in the OS app-data folder, shows QR onboarding in the app window, and can open the same local dashboard in your browser.
+
+Run the desktop app in development:
+
+```bash
+npm run desktop:dev
+```
+
+Prepare the bundled backend resources and current-platform Node sidecar:
+
+```bash
+npm run desktop:prepare
+```
+
+Check the Tauri/Rust shell without launching the app:
+
+```bash
+npm run desktop:check
+```
+
+Build a self-contained desktop bundle for the current platform:
+
+```bash
+npm run desktop:build
+```
+
+By default, `desktop:build` creates the stable bundle type for the current OS: `.app` on macOS, NSIS on Windows, and AppImage on Linux. To ask Tauri for another bundle type, set `WACC_TAURI_BUNDLES`, for example:
+
+```bash
+WACC_TAURI_BUNDLES=dmg npm run desktop:build
+```
+
+For macOS, Windows, and Linux release artifacts, run the build on each target OS or in matching CI runners. The prepare step creates the correct Tauri sidecar name for the active Rust target triple, such as `wacc-node-aarch64-apple-darwin` on Apple Silicon Macs.
+
 ## Installed command (background mode)
 
 If installed as a package, run:

@@ -34,7 +34,7 @@
     "test": "node --test",
     "desktop:prepare": "node scripts/prepare-tauri-sidecar.js",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build",
+    "desktop:build": "node scripts/desktop-build.js",
     "desktop:check": "npm run desktop:prepare && cargo check --manifest-path src-tauri/Cargo.toml",
     "check": "node --check src/*.js",
     "prepublishOnly": "npm run check"
