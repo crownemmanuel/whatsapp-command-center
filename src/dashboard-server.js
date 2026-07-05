@@ -5,7 +5,14 @@ import { WebSocketServer } from "ws"
 
 const MEDIA_FILENAME_REG = /^[a-zA-Z0-9_.-]+\.(jpeg|jpg|png|gif|webp)$/
 
-export function createDashboardServer({ port, mediaDir, getState, onUpdateSettings, onUnlockGroups }) {
+export function createDashboardServer({
+  port,
+  host = "0.0.0.0",
+  mediaDir,
+  getState,
+  onUpdateSettings,
+  onUnlockGroups,
+}) {
   const clients = new Set()
 
   const server = http.createServer(async (req, res) => {
@@ -162,11 +169,23 @@ export function createDashboardServer({ port, mediaDir, getState, onUpdateSettin
     }
   }
 
-  server.listen(port, "0.0.0.0", () => {
-    console.log(`Dashboard running at http://localhost:${port}`)
+  let readyResolve
+  let readyReject
+  const ready = new Promise((resolve, reject) => {
+    readyResolve = resolve
+    readyReject = reject
+  })
+  let listenError = null
+
+  server.listen(port, host, () => {
+    const url = getServerUrl()
+    console.log(`Dashboard running at ${url}`)
+    readyResolve()
   })
 
   server.on("error", (err) => {
+    listenError = err
+    readyReject(err)
     if (err.code === "EADDRINUSE") {
       console.error(`Port ${port} is already in use. Change it in Settings or stop the other process.`)
     } else {
@@ -175,8 +194,28 @@ export function createDashboardServer({ port, mediaDir, getState, onUpdateSettin
   })
 
   return {
-    close: () => server.close(),
+    close: () => new Promise((resolve, reject) => {
+      wss.close(() => {
+        server.close((error) => {
+          if (error && error.code !== "ERR_SERVER_NOT_RUNNING") reject(error)
+          else resolve()
+        })
+      })
+    }),
     broadcast,
+    ready,
+    address: () => server.address(),
+    get url() {
+      if (listenError) return ""
+      return getServerUrl()
+    },
+  }
+
+  function getServerUrl() {
+    const address = server.address()
+    const actualPort = typeof address === "object" && address ? address.port : port
+    const urlHost = host === "0.0.0.0" ? "localhost" : host
+    return `http://${urlHost}:${actualPort}`
   }
 }
 

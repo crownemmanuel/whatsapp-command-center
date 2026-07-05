@@ -5,8 +5,7 @@ import { fileURLToPath } from "node:url"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const ROOT = path.resolve(__dirname, "..")
-const DATA_DIR = path.join(ROOT, "data")
-const CONFIG_PATH = path.join(DATA_DIR, "config.json")
+const DEFAULT_DATA_DIR = path.join(ROOT, "data")
 
 export function defaultConfig() {
   return {
@@ -28,9 +27,11 @@ export function defaultConfig() {
 }
 
 export async function loadConfig() {
-  await fs.mkdir(DATA_DIR, { recursive: true })
+  const dataDir = getDataDir()
+  const configPath = getConfigPath()
+  await fs.mkdir(dataDir, { recursive: true })
   try {
-    const raw = await fs.readFile(CONFIG_PATH, "utf8")
+    const raw = await fs.readFile(configPath, "utf8")
     return normalizeConfig(JSON.parse(raw))
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
@@ -43,21 +44,32 @@ export async function loadConfig() {
 }
 
 export async function saveConfig(config) {
-  await fs.mkdir(DATA_DIR, { recursive: true })
+  await fs.mkdir(getDataDir(), { recursive: true })
   const normalized = normalizeConfig(config)
-  await fs.writeFile(CONFIG_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8")
+  await fs.writeFile(getConfigPath(), `${JSON.stringify(normalized, null, 2)}\n`, "utf8")
   return normalized
 }
 
+export function getDataDir() {
+  const configured = process.env.WACC_DATA_DIR
+  return configured ? path.resolve(configured) : DEFAULT_DATA_DIR
+}
+
+export function getConfigPath() {
+  return path.join(getDataDir(), "config.json")
+}
+
 export function getSessionDir() {
+  if (process.env.WACC_DATA_DIR) return path.join(getDataDir(), "baileys-auth")
   return path.join(ROOT, "baileys-auth")
 }
 
 export function getMediaDir() {
-  return path.join(DATA_DIR, "media")
+  return path.join(getDataDir(), "media")
 }
 
 export function getQrPath() {
+  if (process.env.WACC_DATA_DIR) return path.join(getDataDir(), "wa-qr.png")
   return path.join(ROOT, "wa-qr.png")
 }
 

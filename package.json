@@ -31,6 +31,7 @@
   ],
   "scripts": {
     "start": "node src/index.js",
+    "test": "node --test",
     "check": "node --check src/*.js",
     "prepublishOnly": "npm run check"
   },
