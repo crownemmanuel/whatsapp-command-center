@@ -12,18 +12,8 @@ on:
       - "package.json"
       - "package-lock.json"
   push:
-    branches:
-      - main
     tags:
       - "v*"
-    paths:
-      - ".github/workflows/desktop-build.yml"
-      - "desktop/**"
-      - "scripts/**"
-      - "src/**"
-      - "src-tauri/**"
-      - "package.json"
-      - "package-lock.json"
 
 permissions:
   contents: read
