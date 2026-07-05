@@ -90,7 +90,7 @@ fn start_backend(app: AppHandle) -> Result<(), String> {
 
     let (mut rx, child) = app
         .shell()
-        .sidecar("binaries/wacc-node")
+        .sidecar("wacc-node")
         .map_err(|error| format!("Could not create backend sidecar command: {error}"))?
         .args([
             backend_entry.to_string_lossy().to_string(),
