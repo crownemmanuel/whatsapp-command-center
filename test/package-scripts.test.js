@@ -7,4 +7,6 @@ test("package scripts expose the Tauri desktop entrypoints", async () => {
 
   assert.equal(packageJson.scripts["desktop:dev"], "tauri dev")
   assert.equal(packageJson.scripts.tauri, "tauri")
+  assert.equal(packageJson.scripts.check, "node scripts/check-js.js")
+  assert.doesNotMatch(packageJson.scripts.check, /\*/)
 })

@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-command-center",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Big-screen WhatsApp command center dashboard",
   "keywords": [
@@ -37,7 +37,7 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "node scripts/desktop-build.js",
     "desktop:check": "npm run desktop:prepare && cargo check --manifest-path src-tauri/Cargo.toml",
-    "check": "node --check src/*.js",
+    "check": "node scripts/check-js.js",
     "prepublishOnly": "npm run check"
   },
   "engines": {
