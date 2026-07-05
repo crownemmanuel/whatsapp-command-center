@@ -41,8 +41,9 @@ fn open_in_browser(app: AppHandle, state: State<'_, BackendState>) -> Result<(),
         .map_err(|_| "Could not read backend URL".to_string())?
         .clone()
         .ok_or_else(|| "The dashboard is not ready yet.".to_string())?;
+    let display_url = format!("{}/?display=1", url.trim_end_matches('/'));
     app.opener()
-        .open_url(url, None::<String>)
+        .open_url(display_url, None::<String>)
         .map_err(|error| error.to_string())
 }
 

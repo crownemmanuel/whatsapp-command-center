@@ -32,6 +32,7 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",
+    "tauri": "tauri",
     "desktop:prepare": "node scripts/prepare-tauri-sidecar.js",
     "desktop:dev": "tauri dev",
     "desktop:build": "node scripts/desktop-build.js",

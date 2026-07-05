@@ -26,6 +26,7 @@ export async function startCommandCenter(options = {}) {
     resetWhatsAppSession,
     runFirstSetup: runTerminalSetup,
     setupWhatsAppSession,
+    fetch: globalThis.fetch,
     ...(options.services || {}),
   }
 
@@ -88,6 +89,7 @@ export async function startCommandCenter(options = {}) {
     pulseKeywords: config.pulseKeywords,
     flashMode: config.pulseMode,
     groupKeywords: config.groupKeywords,
+    webhooks: config.webhooks,
     hasGroupPin: Boolean(config.groupPinHash),
     messageFontSize: config.messageFontSize,
     showImages: config.showImages,
@@ -116,6 +118,7 @@ export async function startCommandCenter(options = {}) {
     state.pulseKeywords = config.pulseKeywords
     state.flashMode = config.pulseMode
     state.groupKeywords = config.groupKeywords
+    state.webhooks = config.webhooks
     state.hasGroupPin = Boolean(config.groupPinHash)
     state.messageFontSize = config.messageFontSize
     state.showImages = config.showImages
@@ -189,6 +192,8 @@ export async function startCommandCenter(options = {}) {
 
         state.knownGroups = mergeGroups(state.knownGroups, [{ id: incoming.chatId, name: message.groupName }])
 
+        void dispatchWebhooks(message)
+
         if (!messageMatchesFilter(message, state)) {
           return
         }
@@ -210,6 +215,20 @@ export async function startCommandCenter(options = {}) {
     })
   }
 
+  async function dispatchWebhooks(message) {
+    const rules = Array.isArray(config.webhooks) ? config.webhooks : []
+    if (!rules.length || typeof services.fetch !== "function") return
+
+    for (const rule of rules) {
+      if (!webhookMatchesMessage(rule, message)) continue
+      try {
+        await services.fetch(...buildWebhookRequest(rule, message))
+      } catch (error) {
+        LOG.warn({ err: error, webhook: rule.name || rule.id }, "Webhook call failed")
+      }
+    }
+  }
+
   dashboard = createDashboardServer({
     port,
     host,
@@ -218,10 +237,22 @@ export async function startCommandCenter(options = {}) {
     getState: () => ({ ...state }),
     getDesktopStatus: () => ({
       ...setupState,
+      onboardingRequired: setupState.onboardingRequired || (desktop && !state.connected),
+      setupPhase: setupState.setupPhase === "ready" && desktop && !state.connected
+        ? "disconnected"
+        : setupState.setupPhase,
       dashboardUrl: dashboard?.url || "",
     }),
-    onRefreshGroups: async () => refreshGroups(),
+    onRefreshGroups: async (incoming = {}) => {
+      if (config.groupPinHash && !verifyPin(String(incoming.pin || "").trim(), config.groupPinHash)) {
+        throw forbidden("PIN required to refresh groups")
+      }
+      return refreshGroups()
+    },
     onCompleteOnboarding: async (incoming) => {
+      if (config.groupPinHash && !verifyPin(String(incoming.groupPinAuth || "").trim(), config.groupPinHash)) {
+        throw forbidden("PIN required to update groups")
+      }
       const watchedGroups = Array.isArray(incoming.watchedGroups) ? incoming.watchedGroups : []
       const next = await saveConfig(normalizeConfig({
         ...config,
@@ -234,7 +265,10 @@ export async function startCommandCenter(options = {}) {
       dashboard.broadcast({ type: "state", payload: { ...state } })
       return { ...state }
     },
-    onRescan: async () => {
+    onRescan: async (incoming = {}) => {
+      if (config.groupPinHash && !verifyPin(String(incoming.groupPinAuth || incoming.pin || "").trim(), config.groupPinHash)) {
+        throw forbidden("PIN required to reconnect WhatsApp")
+      }
       await stopBridge()
       const next = await saveConfig(normalizeConfig({ ...config, watchedGroups: [] }))
       applyConfigToState(next)
@@ -247,6 +281,19 @@ export async function startCommandCenter(options = {}) {
       const next = await saveConfig(normalizeConfig({ ...config, watchedGroups: [] }))
       applyConfigToState(next)
       updateSetup({ onboardingRequired: true, setupPhase: "logged_out", qrAvailable: false, error: "" })
+      return { ok: true, ...setupState }
+    },
+    onForgotPin: async () => {
+      await stopBridge()
+      await services.resetWhatsAppSession(sessionDir)
+      const next = await saveConfig(normalizeConfig({
+        ...config,
+        watchedGroups: [],
+        groupPinHash: "",
+      }))
+      applyConfigToState(next)
+      updateSetup({ onboardingRequired: true, setupPhase: "logged_out", qrAvailable: false, error: "" })
+      void beginWebSetup({ resetSession: false })
       return { ok: true, ...setupState }
     },
     onUnlockGroups: async (incoming) => {
@@ -290,6 +337,7 @@ export async function startCommandCenter(options = {}) {
         pulseKeywords: incoming.pulseKeywords,
         flashMode: incoming.pulseMode === "keywords" ? "keywords" : "all",
         groupKeywords: incoming.groupKeywords,
+        webhooks: incoming.webhooks,
         messageFontSize: incoming.messageFontSize,
         showImages: incoming.showImages,
         groupPinHash: wantsPinChange
@@ -308,6 +356,10 @@ export async function startCommandCenter(options = {}) {
       }
       if (state.watchedGroups.length) await startBridgeIfNeeded({ waitUntilReady: false })
       return { ...state }
+    },
+    onOpenBrowser: async () => {
+      openInBrowser(`${dashboard.url}/?display=1`)
+      return { ok: true }
     },
   })
 
@@ -351,6 +403,105 @@ export async function startCommandCenter(options = {}) {
     state,
     shutdown,
   }
+}
+
+function webhookMatchesMessage(rule, message) {
+  if (!rule || rule.enabled === false || !rule.url) return false
+  if (rule.triggerType === "sender") {
+    return normalizeText(message.sender) === normalizeText(rule.sender)
+  }
+  if (rule.triggerType === "keyword") {
+    const keyword = String(rule.keyword || "")
+    const text = String(message.text || "")
+    if (!keyword) return false
+    if (rule.keywordIsRegex) {
+      try {
+        return new RegExp(keyword, "i").test(text)
+      } catch {
+        return false
+      }
+    }
+    return text.toLowerCase().includes(keyword.toLowerCase())
+  }
+  return true
+}
+
+function buildWebhookRequest(rule, message) {
+  const captures = extractWebhookCaptures(rule.regex, message.text)
+  const vars = webhookVariables(message, captures)
+  const method = String(rule.method || "POST").toUpperCase()
+  const headers = {}
+  for (const [key, value] of Object.entries(rule.headers || {})) {
+    headers[renderTemplate(key, vars)] = renderTemplate(value, vars)
+  }
+
+  const options = { method, headers }
+  if (!["GET", "DELETE"].includes(method)) {
+    if (rule.sendEntireMessage || !String(rule.bodyTemplate || "").trim()) {
+      if (!hasHeader(headers, "content-type")) headers["content-type"] = "application/json"
+      options.body = JSON.stringify({ ...message, webhook: { id: rule.id, name: rule.name || "" } })
+    } else {
+      options.body = renderTemplate(rule.bodyTemplate, vars)
+    }
+  }
+
+  return [renderTemplate(rule.url, vars), options]
+}
+
+function extractWebhookCaptures(pattern, text) {
+  if (!pattern) return {}
+  try {
+    const match = new RegExp(pattern).exec(String(text || ""))
+    if (!match) return {}
+    const captures = { match: match[0] }
+    match.slice(1).forEach((value, index) => {
+      captures[`match${index + 1}`] = value || ""
+    })
+    if (match.groups) {
+      for (const [key, value] of Object.entries(match.groups)) captures[key] = value || ""
+    }
+    return captures
+  } catch {
+    return {}
+  }
+}
+
+function webhookVariables(message, captures) {
+  const attachment = message.attachment || {}
+  return {
+    messageId: message.id || "",
+    id: message.id || "",
+    text: message.text || "",
+    sender: message.sender || "",
+    chatId: message.chatId || "",
+    groupName: message.groupName || "",
+    timestamp: message.ts ? new Date(message.ts).toISOString() : "",
+    ts: message.ts || "",
+    attachmentUrl: attachment.url || message.imageUrl || "",
+    attachmentName: attachment.fileName || "",
+    attachmentMimeType: attachment.mimeType || "",
+    ...captures,
+  }
+}
+
+function renderTemplate(template, vars) {
+  return String(template || "").replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_match, key) =>
+    encodeTemplateValue(vars[key])
+  )
+}
+
+function encodeTemplateValue(value) {
+  if (value === undefined || value === null) return ""
+  return String(value)
+}
+
+function hasHeader(headers, name) {
+  const target = String(name || "").toLowerCase()
+  return Object.keys(headers).some((key) => key.toLowerCase() === target)
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase()
 }
 
 function openInBrowser(url) {

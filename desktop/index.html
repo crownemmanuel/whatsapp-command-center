@@ -95,7 +95,9 @@
       try {
         const status = await invoke('backend_status');
         if (status.ready && status.url) {
-          location.replace(status.url);
+          statusEl.textContent = 'Checking WhatsApp connection...';
+          const targetUrl = await resolveStartUrl(status.url);
+          location.replace(targetUrl);
           return;
         }
         if (status.error) {
@@ -110,6 +112,19 @@
         statusEl.className = 'error';
       }
       setTimeout(poll, 450);
+    }
+
+    async function resolveStartUrl(baseUrl) {
+      try {
+        const response = await fetch(new URL('/api/desktop/status', baseUrl), { cache: 'no-store' });
+        const desktopStatus = await response.json();
+        if (desktopStatus && desktopStatus.onboardingRequired) {
+          return new URL('/onboarding', baseUrl).toString();
+        }
+      } catch {
+        // The dashboard is still usable if the status probe is unavailable.
+      }
+      return baseUrl;
     }
 
     openBrowserBtn.onclick = async () => {

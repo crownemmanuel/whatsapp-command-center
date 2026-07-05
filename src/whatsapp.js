@@ -106,21 +106,28 @@ export class WhatsAppBridge {
   async processIncomingMessage(msg) {
     const rows = toIncomingRows({ messages: [msg] })
     for (const row of rows) {
-      if (row.hasImage && this.mediaDir) {
+      if (row.hasAttachment && this.mediaDir) {
         try {
           const buf = await downloadMediaMessage(msg, "buffer")
-          const safeId = (row.id || "").replace(/[^a-zA-Z0-9-_]/g, "_") || "img"
-          const ext = ".jpeg"
+          const safeId = (row.id || "").replace(/[^a-zA-Z0-9-_]/g, "_") || "attachment"
+          const ext = path.extname(row.attachment?.fileName || "") || extensionFromMime(row.attachment?.mimeType) || ".bin"
           const filename = safeId + ext
           const filePath = path.join(this.mediaDir, filename)
           await fs.mkdir(this.mediaDir, { recursive: true })
           await fs.writeFile(filePath, buf)
-          row.imageUrl = "/api/media/" + encodeURIComponent(filename)
+          const url = "/api/media/" + encodeURIComponent(filename)
+          row.attachment = {
+            ...row.attachment,
+            url,
+            fileName: row.attachment?.fileName || filename,
+          }
+          if (row.hasImage) row.imageUrl = url
         } catch (err) {
-          LOG.warn({ err }, "Failed to download image")
+          LOG.warn({ err }, "Failed to download attachment")
         }
       }
       delete row.hasImage
+      delete row.hasAttachment
       this.onMessage(row)
     }
   }
@@ -230,7 +237,7 @@ export async function resetWhatsAppSession(sessionDir) {
   await fs.rm(sessionDir, { recursive: true, force: true })
 }
 
-function toIncomingRows(payload) {
+export function toIncomingRows(payload) {
   const messages = Array.isArray(payload?.messages) ? payload.messages : []
   const rows = []
 
@@ -238,22 +245,33 @@ function toIncomingRows(payload) {
     const remoteJid = msg.key?.remoteJid || ""
     if (!remoteJid.endsWith("@g.us")) continue
 
-    const text = extractText(msg.message)
-    const hasImage = hasImageMessage(msg.message)
-    if (!text && !hasImage) continue
+    const content = unwrapMessage(msg.message)
+    const text = extractText(content)
+    const attachment = getAttachment(content)
+    if (!text && !attachment) continue
 
     rows.push({
       id: msg.key?.id || `${Date.now()}-${Math.random()}`,
       chatId: remoteJid,
       sender: msg.pushName || msg.key?.participant || "Unknown",
-      text: text || "[Image]",
+      text: text || fallbackAttachmentText(attachment),
       ts: Number(msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
       fromMe: Boolean(msg.key?.fromMe),
-      hasImage: hasImage || undefined,
+      hasImage: attachment?.kind === "image" || undefined,
+      hasAttachment: Boolean(attachment) || undefined,
+      attachment,
     })
   }
 
   return rows
+}
+
+function unwrapMessage(message) {
+  if (!message || typeof message !== "object") return message
+  return message.ephemeralMessage?.message
+    || message.viewOnceMessage?.message
+    || message.viewOnceMessageV2?.message
+    || message
 }
 
 function hasImageMessage(message) {
@@ -262,6 +280,7 @@ function hasImageMessage(message) {
 }
 
 function extractText(message) {
+  message = unwrapMessage(message)
   if (!message || typeof message !== "object") return ""
   if (message.conversation) return String(message.conversation)
   if (message.extendedTextMessage?.text) return String(message.extendedTextMessage.text)
@@ -269,6 +288,67 @@ function extractText(message) {
   if (message.videoMessage?.caption) return String(message.videoMessage.caption)
   if (message.documentMessage?.caption) return String(message.documentMessage.caption)
   if (message.pollCreationMessage?.name) return `[Poll] ${message.pollCreationMessage.name}`
+  return ""
+}
+
+function getAttachment(message) {
+  message = unwrapMessage(message)
+  if (!message || typeof message !== "object") return null
+  const candidates = [
+    ["image", message.imageMessage],
+    ["video", message.videoMessage],
+    ["document", message.documentMessage],
+    ["audio", message.audioMessage],
+    ["sticker", message.stickerMessage],
+  ]
+  const found = candidates.find(([, value]) => value)
+  if (!found) return null
+  const [kind, value] = found
+  const mimeType = String(value.mimetype || kindToMime(kind))
+  const fileName = String(value.fileName || defaultAttachmentName(kind, mimeType)).trim()
+  return {
+    fileName,
+    mimeType,
+    size: Number(value.fileLength || 0),
+    kind,
+  }
+}
+
+function fallbackAttachmentText(attachment) {
+  if (!attachment) return ""
+  if (attachment.kind === "image") return "[Image]"
+  if (attachment.kind === "video") return "[Video]"
+  if (attachment.kind === "audio") return "[Audio]"
+  return `[File] ${attachment.fileName || "attachment"}`
+}
+
+function kindToMime(kind) {
+  if (kind === "image") return "image/jpeg"
+  if (kind === "video") return "video/mp4"
+  if (kind === "audio") return "audio/mpeg"
+  if (kind === "sticker") return "image/webp"
+  return "application/octet-stream"
+}
+
+function defaultAttachmentName(kind, mimeType) {
+  const ext = extensionFromMime(mimeType) || (kind === "document" ? ".bin" : "")
+  return `${kind || "attachment"}${ext}`
+}
+
+function extensionFromMime(mimeType) {
+  const mime = String(mimeType || "").toLowerCase()
+  if (mime.includes("png")) return ".png"
+  if (mime.includes("gif")) return ".gif"
+  if (mime.includes("webp")) return ".webp"
+  if (mime.includes("jpeg") || mime.includes("jpg")) return ".jpeg"
+  if (mime.includes("pdf")) return ".pdf"
+  if (mime.includes("mp4")) return ".mp4"
+  if (mime.includes("mpeg")) return ".mp3"
+  if (mime.includes("ogg")) return ".ogg"
+  if (mime.includes("wordprocessingml")) return ".docx"
+  if (mime.includes("spreadsheetml")) return ".xlsx"
+  if (mime.includes("presentationml")) return ".pptx"
+  if (mime.includes("plain")) return ".txt"
   return ""
 }
 

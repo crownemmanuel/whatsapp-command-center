@@ -22,6 +22,7 @@ export function defaultConfig() {
     flashMode: "keywords",
     groupKeywords: {},
     groupPinHash: "",
+    webhooks: [],
     messageFontSize: 42,
   }
 }
@@ -105,6 +106,7 @@ export function normalizeConfig(input) {
     : []
 
   const groupKeywords = normalizeGroupKeywords(safe.groupKeywords)
+  const webhooks = normalizeWebhooks(safe.webhooks)
 
   const dashboardPort = toPositiveInt(safe.dashboardPort, defaults.dashboardPort)
   const messageFontSize = toPositiveInt(safe.messageFontSize, defaults.messageFontSize)
@@ -129,6 +131,7 @@ export function normalizeConfig(input) {
     flashMode,
     groupKeywords,
     groupPinHash,
+    webhooks,
     messageFontSize: Math.max(16, Math.min(120, messageFontSize)),
   }
 }
@@ -149,6 +152,51 @@ function normalizeGroupKeywords(input) {
       ? words.map((word) => String(word || "").trim()).filter(Boolean)
       : []
     out[id] = normalized
+  }
+  return out
+}
+
+function normalizeWebhooks(input) {
+  if (!Array.isArray(input)) return []
+  return input
+    .filter((item) => item && typeof item === "object")
+    .map((item) => {
+      const triggerType = ["sender", "keyword"].includes(item.triggerType) ? item.triggerType : "all"
+      const method = normalizeWebhookMethod(item.method)
+      const url = String(item.url || "").trim()
+      const name = String(item.name || "").trim()
+      const id = String(item.id || name || url || triggerType).trim()
+      return {
+        id,
+        name,
+        enabled: item.enabled !== false,
+        triggerType,
+        sender: String(item.sender || "").trim(),
+        keyword: String(item.keyword || "").trim(),
+        keywordIsRegex: Boolean(item.keywordIsRegex),
+        method,
+        url,
+        headers: normalizeWebhookHeaders(item.headers),
+        bodyTemplate: String(item.bodyTemplate || ""),
+        sendEntireMessage: Boolean(item.sendEntireMessage),
+        regex: String(item.regex || "").trim(),
+      }
+    })
+    .filter((item) => item.id && item.url)
+}
+
+function normalizeWebhookMethod(value) {
+  const method = String(value || "POST").trim().toUpperCase()
+  return ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method) ? method : "POST"
+}
+
+function normalizeWebhookHeaders(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {}
+  const out = {}
+  for (const [key, value] of Object.entries(input)) {
+    const name = String(key || "").trim()
+    if (!name) continue
+    out[name] = String(value || "")
   }
   return out
 }

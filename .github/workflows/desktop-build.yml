@@ -1,0 +1,139 @@
+name: Desktop builds
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-build.yml"
+      - "desktop/**"
+      - "scripts/**"
+      - "src/**"
+      - "src-tauri/**"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/desktop-build.yml"
+      - "desktop/**"
+      - "scripts/**"
+      - "src/**"
+      - "src-tauri/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon app
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app
+            artifact: whatsapp-command-center-macos-arm64
+            extraArgs: --target aarch64-apple-darwin --bundles app
+          - name: macOS Intel app
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app
+            artifact: whatsapp-command-center-macos-x64
+            extraArgs: --target x86_64-apple-darwin --bundles app
+          - name: Windows NSIS installer
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifact: whatsapp-command-center-windows-x64
+            extraArgs: --target x86_64-pc-windows-msvc --bundles nsis
+          - name: Linux AppImage
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage
+            artifact: whatsapp-command-center-linux-x64
+            extraArgs: --target x86_64-unknown-linux-gnu --bundles appimage
+
+    env:
+      CI: true
+      NODE_RUNTIME_VERSION: "22.17.0"
+      TAURI_TARGET_TRIPLE: ${{ matrix.target }}
+      WACC_TAURI_BUNDLES: ${{ matrix.bundles }}
+      # Ad-hoc macOS identity: no Apple certificate or notarization secrets required.
+      APPLE_SIGNING_IDENTITY: "-"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Configure GitHub git dependencies over HTTPS
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build output
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Cache bundled Node runtime
+        uses: actions/cache@v4
+        with:
+          path: .cache/node-runtime
+          key: node-runtime-${{ matrix.target }}-${{ env.NODE_RUNTIME_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check JavaScript syntax
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build desktop bundle
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_RUNTIME_VERSION: ${{ env.NODE_RUNTIME_VERSION }}
+          TAURI_TARGET_TRIPLE: ${{ matrix.target }}
+          WACC_TAURI_BUNDLES: ${{ matrix.bundles }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+        with:
+          args: ${{ matrix.extraArgs }}
+
+      - name: Upload desktop bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/**
+          if-no-files-found: error
