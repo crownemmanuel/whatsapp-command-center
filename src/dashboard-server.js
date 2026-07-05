@@ -572,6 +572,7 @@ function renderDashboardHtml() {
       <span id="filter-note" class="note">Filter: all messages</span>
       <span id="pulse-note" class="note">Pulse: off</span>
       <a class="btn" href="/settings">Settings</a>
+      <button id="open-browser">Open Browser</button>
       <button id="stop-flash" class="danger">Stop Flash (S)</button>
       <button id="fullscreen">Fullscreen</button>
     </div>
@@ -591,6 +592,7 @@ function renderDashboardHtml() {
     const groupsNames = document.getElementById('groups-names');
     const filterNote = document.getElementById('filter-note');
     const pulseNote = document.getElementById('pulse-note');
+    const openBrowserBtn = document.getElementById('open-browser');
     const stopFlashBtn = document.getElementById('stop-flash');
     const fullscreenBtn = document.getElementById('fullscreen');
 
@@ -670,6 +672,19 @@ function renderDashboardHtml() {
     }
 
     stopFlashBtn.onclick = stopFlash;
+
+    openBrowserBtn.onclick = async () => {
+      const invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+      if (invoke) {
+        try {
+          await invoke('open_in_browser');
+          return;
+        } catch {
+          // Fall through to browser behavior.
+        }
+      }
+      window.open(location.href, '_blank', 'noopener');
+    };
 
     document.addEventListener('keydown', (event) => {
       if (event.key.toLowerCase() === 's') stopFlash();
@@ -922,7 +937,9 @@ function renderOnboardingHtml() {
     const rescanBtn = document.getElementById('rescan');
 
     let knownGroups = [];
+    let knownGroupSignature = '';
     let selectedIds = new Set();
+    let qrWasAvailable = false;
 
     function setMessage(value) {
       messageEl.textContent = value || '';
@@ -958,10 +975,20 @@ function renderOnboardingHtml() {
     async function loadStatus() {
       const status = await fetch('/api/desktop/status').then((r) => r.json());
       setPhase(status.setupPhase);
+      if (status.qrAvailable && !qrWasAvailable) {
+        qrEl.src = '/api/setup/qr.png?ts=' + Date.now();
+      }
+      qrWasAvailable = Boolean(status.qrAvailable);
+
       const state = status.state || {};
-      knownGroups = mergeGroups(state.knownGroups || [], state.watchedGroups || []);
-      selectedIds = new Set((state.watchedGroups || []).map((group) => group.id));
-      renderGroups();
+      const nextKnownGroups = mergeGroups(state.knownGroups || [], state.watchedGroups || []);
+      const nextSignature = JSON.stringify(nextKnownGroups);
+      if (nextSignature !== knownGroupSignature) {
+        knownGroups = nextKnownGroups;
+        knownGroupSignature = nextSignature;
+        (state.watchedGroups || []).forEach((group) => selectedIds.add(group.id));
+        renderGroups();
+      }
     }
 
     async function refreshGroups() {
@@ -973,6 +1000,7 @@ function renderOnboardingHtml() {
         return;
       }
       knownGroups = mergeGroups(body.knownGroups || [], body.watchedGroups || []);
+      knownGroupSignature = JSON.stringify(knownGroups);
       setMessage('Groups refreshed.');
       renderGroups();
     }
@@ -1002,6 +1030,7 @@ function renderOnboardingHtml() {
         return;
       }
       setPhase(body.setupPhase || 'waiting_for_qr');
+      qrWasAvailable = false;
       qrEl.src = '/api/setup/qr.png?ts=' + Date.now();
     }
 
@@ -1045,6 +1074,9 @@ function renderOnboardingHtml() {
     }
 
     loadStatus().catch((error) => setMessage(error.message || String(error)));
+    setInterval(() => {
+      loadStatus().catch((error) => setMessage(error.message || String(error)));
+    }, 1500);
   </script>
 </body>
 </html>`

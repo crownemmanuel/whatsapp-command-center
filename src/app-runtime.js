@@ -238,7 +238,7 @@ export async function startCommandCenter(options = {}) {
       await stopBridge()
       const next = await saveConfig(normalizeConfig({ ...config, watchedGroups: [] }))
       applyConfigToState(next)
-      await beginWebSetup({ resetSession: true })
+      void beginWebSetup({ resetSession: true })
       return { ok: true, ...setupState }
     },
     onLogout: async () => {
