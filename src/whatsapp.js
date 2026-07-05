@@ -141,6 +141,8 @@ export async function setupWhatsAppSession({
   timeoutMs = 120000,
   maxRestartAttempts = 4,
   maxAuthResetAttempts = 1,
+  onQr = null,
+  printQr = true,
 }) {
   let attempt = 0
   let authResetCount = 0
@@ -164,7 +166,9 @@ export async function setupWhatsAppSession({
         onQr: async (qr) => {
           const filePath = await writeQrPng(qr, qrFilePath || path.join(sessionDir, "latest-qr.png"))
           console.log(`Scan WhatsApp QR: ${filePath}`)
+          if (onQr) await onQr({ qr, filePath })
         },
+        printQr,
       })
       return
     } catch (error) {
@@ -268,7 +272,7 @@ function extractText(message) {
   return ""
 }
 
-function waitForOpen(sock, { timeoutMs, onQr = null }) {
+function waitForOpen(sock, { timeoutMs, onQr = null, printQr = true }) {
   return new Promise((resolve, reject) => {
     let lastQr = ""
     const timer = setTimeout(() => {
@@ -282,7 +286,7 @@ function waitForOpen(sock, { timeoutMs, onQr = null }) {
         if (onQr) {
           void onQr(update.qr)
         }
-        void printTerminalQr(update.qr)
+        if (printQr) void printTerminalQr(update.qr)
       }
 
       if (update.connection === "open") {
