@@ -1,6 +1,6 @@
 [package]
 name = "whatsapp-command-center-desktop"
-version = "1.0.2"
+version = "1.0.3"
 description = "Desktop shell for WhatsApp Command Center"
 authors = ["WhatsApp Command Center"]
 license = "MIT"
