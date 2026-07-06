@@ -14,4 +14,6 @@ test("desktop build workflow covers Windows, unsigned macOS, and Linux", async (
   assert.match(workflow, /TAURI_TARGET_TRIPLE/)
   assert.match(workflow, /tauri-apps\/tauri-action@v1/)
   assert.match(workflow, /libwebkit2gtk-4\.1-dev/)
+  assert.match(workflow, /libfuse2/)
+  assert.match(workflow, /APPIMAGE_EXTRACT_AND_RUN:\s+"\d+"/)
 })
